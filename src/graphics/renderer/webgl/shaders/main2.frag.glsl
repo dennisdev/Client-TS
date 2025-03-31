@@ -1,6 +1,3 @@
-import { hslToRgbFunction } from './commons.glsl';
-
-export const SHADER_CODE: string = `
 #version 300 es
 
 precision highp float;
@@ -767,5 +764,3 @@ void main() {
     discard;
     // fragColor = vec4(1.0, 1.0, 1.0, 1.0);
 }
-
-`.trim();

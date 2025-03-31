@@ -3,6 +3,7 @@ import type TileUnderlay from '#/dash3d/type/TileUnderlay.ts';
 import World3D from '#/dash3d/World3D.js';
 import { canvas as cpuCanvas } from '#/graphics/Canvas.ts';
 import type Model from '#/graphics/Model.ts';
+import Pix3D from '#/graphics/Pix3D';
 import PixMap from '#/graphics/PixMap.js';
 import { Renderer } from '#/graphics/renderer/Renderer.js';
 
@@ -15,8 +16,14 @@ import { SHADER_CODE as textureFragShaderCode } from './shaders/fullscreen-textu
 import { SHADER_CODE as textureVertShaderCode } from './shaders/fullscreen-texture.vert.glsl';
 import { SHADER_CODE as mainFragShaderCode } from './shaders/main.frag.glsl';
 import { SHADER_CODE as mainVertShaderCode } from './shaders/main.vert.glsl';
+import { SHADER_CODE as textureTriangleVertShaderCode } from './shaders/texture.vert.glsl';
+import { SHADER_CODE as textureTriangleFragShaderCode } from './shaders/texture.frag.glsl';
 
 const INITIAL_TRIANGLES: number = 100000;
+
+const MAX_TEXTURE_COUNT = 50;
+const MAX_TEXTURE_SIZE = 128;
+const TEXTURE_SHADE_COUNT = 4;
 
 export class RendererWebGL extends Renderer {
     drawTileUnderlay(world: World3D, underlay: TileUnderlay, level: number, tileX: number, tileZ: number): boolean {
@@ -40,17 +47,28 @@ export class RendererWebGL extends Renderer {
     pixMapProgram!: ShaderProgram;
     textureProgram!: ShaderProgram;
     mainProgram!: ShaderProgram;
+    textureTriangleProgram!: ShaderProgram;
 
     viewportFramebuffer!: WebGLFramebuffer;
     viewportColorTarget!: WebGLTexture;
 
+    hslToRgbTexture!: WebGLTexture;
+
+    textureArray!: WebGLTexture;
+
     texturesToDelete: WebGLTexture[] = [];
+
+    texturesUsed: boolean[] = new Array(MAX_TEXTURE_COUNT).fill(false);
 
     isRenderingScene: boolean = false;
 
     gouraudTriangleData: Uint32Array = new Uint32Array(INITIAL_TRIANGLES * 4);
     gouraudTriangleDataView: DataView = new DataView(this.gouraudTriangleData.buffer);
     gouraudTriangleCount: number = 0;
+
+    textureTriangleData: Int32Array = new Int32Array(INITIAL_TRIANGLES * 20);
+    textureTriangleDataView: DataView = new DataView(this.textureTriangleData.buffer);
+    textureTriangleCount: number = 0;
 
     static init(container: HTMLElement, width: number, height: number): RendererWebGL {
         const canvas: HTMLCanvasElement = document.createElement('canvas');
@@ -94,7 +112,10 @@ export class RendererWebGL extends Renderer {
         this.textureProgram = createProgram(this.gl, [textureVertShader, textureFragShader]);
         const mainVertShader: Shader = new Shader(this.gl, this.gl.VERTEX_SHADER, mainVertShaderCode);
         const mainFragShader: Shader = new Shader(this.gl, this.gl.FRAGMENT_SHADER, mainFragShaderCode);
+        const textureTriangleVertShader: Shader = new Shader(this.gl, this.gl.VERTEX_SHADER, textureTriangleVertShaderCode);
+        const textureTriangleFragShader: Shader = new Shader(this.gl, this.gl.FRAGMENT_SHADER, textureTriangleFragShaderCode);
         this.mainProgram = createProgram(this.gl, [mainVertShader, mainFragShader]);
+        this.textureTriangleProgram = createProgram(this.gl, [textureTriangleVertShader, textureTriangleFragShader]);
 
         const viewportWidth: number = World3D.viewportRight;
         const viewportHeight: number = World3D.viewportBottom;
@@ -112,11 +133,53 @@ export class RendererWebGL extends Renderer {
         this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.viewportColorTarget, 0);
 
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+
+        this.hslToRgbTexture = this.gl.createTexture()!;
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.hslToRgbTexture);
+        this.gl.texStorage2D(this.gl.TEXTURE_2D, 1, this.gl.RGBA8, 256, 256);        
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+
+        this.gl.activeTexture(this.gl.TEXTURE1);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.hslToRgbTexture);
+        this.gl.activeTexture(this.gl.TEXTURE0);
+
+        this.setBrightness(0);
+
+        this.textureArray = this.gl.createTexture()!;
+        this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.textureArray);
+        this.gl.texStorage3D(this.gl.TEXTURE_2D_ARRAY, 1, this.gl.RGBA8, MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE * TEXTURE_SHADE_COUNT, MAX_TEXTURE_COUNT);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+
+        for (let id = 0; id < MAX_TEXTURE_COUNT; id++) {
+            const texels = Pix3D.getTexels(id);
+            if (!texels) {
+                continue;
+            }
+            
+            this.gl.texSubImage3D(
+                this.gl.TEXTURE_2D_ARRAY,
+                0,
+                0,
+                0,
+                id,
+                MAX_TEXTURE_SIZE,
+                MAX_TEXTURE_SIZE * TEXTURE_SHADE_COUNT,
+                1,
+                this.gl.RGBA,
+                this.gl.UNSIGNED_BYTE,
+                new Uint8Array(texels.buffer),
+            );
+        }
     }
 
     override startFrame(): void {
         // this.gl.clearColor(0.2, 0, 0, 1);
         // this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+        this.texturesUsed.fill(false);
     }
 
     override endFrame(): void {
@@ -126,9 +189,14 @@ export class RendererWebGL extends Renderer {
         this.texturesToDelete.length = 0;
     }
 
-    override updateTexture(id: number): void { }
+    override updateTexture(id: number): void {
 
-    override setBrightness(brightness: number): void { }
+    }
+
+    override setBrightness(brightness: number): void {
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.hslToRgbTexture);
+        this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, 256, 256, this.gl.RGBA, this.gl.UNSIGNED_BYTE, new Uint8Array(Pix3D.hslPal.buffer));
+    }
 
     override renderPixMap(pixMap: PixMap, x: number, y: number): boolean {
         this.gl.viewport(x, this.canvas.height - y - pixMap.height2d, pixMap.width2d, pixMap.height2d);
@@ -161,6 +229,7 @@ export class RendererWebGL extends Renderer {
     override startRenderScene(): void {
         this.isRenderingScene = true;
         this.gouraudTriangleCount = 0;
+        this.textureTriangleCount = 0;
     }
 
     override endRenderScene(): void {
@@ -189,7 +258,33 @@ export class RendererWebGL extends Renderer {
             this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
             this.mainProgram.use();
+
+            this.gl.uniform1i(this.mainProgram.getUniformLocation('u_triangleData'), 0);
+            this.gl.uniform1i(this.mainProgram.getUniformLocation('u_hslToRgb'), 1);
+
             this.gl.drawArrays(this.gl.TRIANGLES, 0, this.gouraudTriangleCount * 3);
+
+            this.texturesToDelete.push(texture);
+        }
+
+        if (this.textureTriangleCount > 0) {
+            // console.log('Rendering scene', this.textureTriangleCount);
+            const texture: WebGLTexture = this.gl.createTexture()!;
+            this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+            this.gl.texStorage2D(this.gl.TEXTURE_2D, 1, this.gl.RGBA32I, this.textureTriangleCount * 5, 1);
+            this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, this.textureTriangleCount * 5, 1, this.gl.RGBA_INTEGER, this.gl.INT, this.textureTriangleData);
+
+            this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+            this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+            this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+            this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+
+            this.textureTriangleProgram.use();
+
+            this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_triangleData'), 0);
+            this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_hslToRgb'), 1);
+
+            this.gl.drawArrays(this.gl.TRIANGLES, 0, this.textureTriangleCount * 3);
 
             this.texturesToDelete.push(texture);
         }
@@ -209,7 +304,7 @@ export class RendererWebGL extends Renderer {
             return false;
         }
 
-        let offset: number = this.gouraudTriangleCount * 4;
+        let offset: number = (this.gouraudTriangleCount + 1) * 4;
 
         if (offset >= this.gouraudTriangleData.length) {
             const newData: Uint32Array = new Uint32Array(this.gouraudTriangleData.length * 2);
@@ -224,6 +319,12 @@ export class RendererWebGL extends Renderer {
         yA += 2048;
         yB += 2048;
         yC += 2048;
+
+        if (xA < 0 || xA >= 4096 || xB < 0 || xB >= 4096 || xC < 0 || xC >= 4096 ||
+            yA < 0 || yA >= 4096 || yB < 0 || yB >= 4096 || yC < 0 || yC >= 4096) {
+            console.log('Gouraud triangle out of bounds', xA, xB, xC, yA, yB, yC);
+            return true;
+        }
 
         this.gouraudTriangleDataView.setUint32(offset++ * 4, (xA << 20) | (xB << 8) | (xC >> 4), true);
         this.gouraudTriangleDataView.setUint32(offset++ * 4, (yA << 20) | (yB << 8) | (xC & 0xf), true);
@@ -264,6 +365,49 @@ export class RendererWebGL extends Renderer {
         if (!this.isRenderingScene) {
             return false;
         }
+
+        // Flag texture as used for animated textures
+        if (!this.texturesUsed[texture]) {
+            Pix3D.textureCycle[texture] = Pix3D.cycle++;
+            this.texturesUsed[texture] = true;
+        }
+
+        // if (true) {
+        //     this.fillGouraudTriangle(xA, xB, xC, yA, yB, yC, shadeA, shadeB, shadeC);
+        //     return true;
+        // }
+
+        let offset: number = (this.textureTriangleCount + 1) * 20;
+
+        if (offset >= this.textureTriangleData.length) {
+            const newData: Int32Array = new Int32Array(this.textureTriangleData.length * 2);
+            newData.set(this.textureTriangleData);
+            this.textureTriangleData = newData;
+            this.textureTriangleDataView = new DataView(this.textureTriangleData.buffer);
+        }
+
+        this.textureTriangleDataView.setInt32(offset++ * 4, xA, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, xB, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, xC, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, yA, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, yB, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, yC, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, shadeA, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, shadeB, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, shadeC, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, originX, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, originY, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, originZ, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, txB, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, txC, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, tyB, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, tyC, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, tzB, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, tzC, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, texture, true);
+
+        this.textureTriangleCount++;
+
         return true;
     }
 

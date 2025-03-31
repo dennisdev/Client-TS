@@ -1,7 +1,7 @@
 import { Shader } from './Shader';
 import { WebGLResource } from './WebGLResource';
 
-export function createProgram(ctx: WebGL2RenderingContext, shaders: Iterable<Shader>): ShaderProgram {
+export function createProgram(ctx: WebGL2RenderingContext, shaders: Iterable<Shader>, deleteShader: boolean = true): ShaderProgram {
     const program: ShaderProgram = new ShaderProgram(ctx);
 
     for (const shader of shaders) {
@@ -10,8 +10,10 @@ export function createProgram(ctx: WebGL2RenderingContext, shaders: Iterable<Sha
 
     program.link();
 
-    for (const shader of shaders) {
-        shader.delete();
+    if (deleteShader) {
+        for (const shader of shaders) {
+            program.ctx.deleteShader(shader.shader);
+        }
     }
 
     return program;
@@ -19,6 +21,8 @@ export function createProgram(ctx: WebGL2RenderingContext, shaders: Iterable<Sha
 
 export class ShaderProgram extends WebGLResource {
     readonly program: WebGLProgram;
+
+    uniforms: Record<string, WebGLUniformLocation | null> = {};
 
     constructor(ctx: WebGL2RenderingContext) {
         super(ctx);
@@ -48,6 +52,17 @@ export class ShaderProgram extends WebGLResource {
 
     use(): void {
         this.ctx.useProgram(this.program);
+    }
+
+    getUniformLocation(name: string): WebGLUniformLocation {
+        if (this.uniforms[name] === undefined) {
+            this.uniforms[name] = this.ctx.getUniformLocation(this.program, name);
+        }
+        const location: WebGLUniformLocation | null = this.uniforms[name];
+        if (location === null) {
+            throw new Error(`Uniform location not found: ${name}`);
+        }
+        return location;
     }
 
     override delete(): void {

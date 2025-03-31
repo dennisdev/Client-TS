@@ -1,6 +1,3 @@
-import { hslToRgbFunction } from './commons.glsl';
-
-export const SHADER_CODE: string = `
 #version 300 es
 
 precision highp float;
@@ -8,9 +5,11 @@ precision highp int;
 
 uniform highp sampler2D u_hslToRgb;
 
-flat in ivec3 xs;
-flat in ivec3 ys;
-flat in ivec3 colors;
+flat in ivec4 v_data0;
+flat in ivec4 v_data1;
+flat in ivec4 v_data2;
+flat in ivec4 v_data3;
+flat in ivec4 v_data4;
 
 out vec4 fragColor;
 
@@ -30,6 +29,7 @@ int reciprocal15(int value) {
 }
 
 bool isOutsideScanline(int xA, int xB) {
+    // return false;
     int fragX = int(gl_FragCoord.x);
     return fragX < xA || fragX >= xB || xA >= xB || fragX >= width - 1;
 }
@@ -55,15 +55,25 @@ vec3 getScanlineColor(int xA, int xB, int colorA, int colorB) {
 }
 
 void main() {
-    int x_a = xs.x;
-    int x_b = xs.y;
-    int x_c = xs.z;
-    int y_a = ys.x;
-    int y_b = ys.y;
-    int y_c = ys.z;
-    int colour_a = colors.x;
-    int colour_b = colors.y;
-    int colour_c = colors.z;
+    int x_a = v_data0.x;
+    int x_b = v_data0.y;
+    int x_c = v_data0.z;
+    int y_a = v_data0.w;
+    int y_b = v_data1.x;
+    int y_c = v_data1.y;
+    int shade_a = v_data1.z;
+    int shade_b = v_data1.w;
+    int shade_c = v_data2.x;
+    int origin_x = v_data2.y;
+    int origin_y = v_data2.z;
+    int origin_z = v_data2.w;
+    int tx_b = v_data3.x;
+    int tx_c = v_data3.y;
+    int ty_b = v_data3.z;
+    int ty_c = v_data3.w;
+    int tz_b = v_data4.x;
+    int tz_c = v_data4.y;
+    int texture = v_data4.z;
 
     int minScanlineY = max(min(y_a, min(y_b, y_c)), 0);
     int maxScanlineY = max(y_a, max(y_b, y_c));
@@ -74,25 +84,45 @@ void main() {
 
     fragColor.a = 1.0;
 
+    int vertical_x = origin_x - tx_b;
+    int vertical_y = origin_y - ty_b;
+    int vertical_z = origin_z - tz_b;
+
+    int horizontal_x = tx_c - origin_x;
+    int horizontal_y = ty_c - origin_y;
+    int horizontal_z = tz_c - origin_z;
+
+    int u = ((horizontal_x * origin_y) - (horizontal_y * origin_x)) << 14;
+    int u_stride = ((horizontal_y * origin_z) - (horizontal_z * origin_y)) << 8;
+    int u_step_vertical = ((horizontal_z * origin_x) - (horizontal_x * origin_z)) << 5;
+
+    int v = ((vertical_x * origin_y) - (vertical_y * origin_x)) << 14;
+    int v_stride = ((vertical_y * origin_z) - (vertical_z * origin_y)) << 8;
+    int v_step_vertical = ((vertical_z * origin_x) - (vertical_x * origin_z)) << 5;
+
+    int w = ((vertical_y * horizontal_x) - (vertical_x * horizontal_y)) << 14;
+    int w_stride = ((vertical_z * horizontal_y) - (vertical_y * horizontal_z)) << 8;
+    int w_step_vertical = ((vertical_x * horizontal_z) - (vertical_z * horizontal_x)) << 5;
+
 	int x_step_ab = 0;
 	int colour_step_ab = 0;
 	if (y_b != y_a) {
 		x_step_ab = ((x_b - x_a) << 16) / (y_b - y_a);
-        colour_step_ab = ((colour_b - colour_a) << 15) / (y_b - y_a);
+        colour_step_ab = ((shade_b - shade_a) << 15) / (y_b - y_a);
 	}
 
 	int x_step_bc = 0;
 	int colour_step_bc = 0;
 	if (y_c != y_b) {
         x_step_bc = ((x_c - x_b) << 16) / (y_c - y_b);
-        colour_step_bc = ((colour_c - colour_b) << 15) / (y_c - y_b);
+        colour_step_bc = ((shade_c - shade_b) << 15) / (y_c - y_b);
 	}
 
 	int x_step_ac = 0;
 	int colour_step_ac = 0;
 	if (y_c != y_a) {
         x_step_ac = ((x_a - x_c) << 16) / (y_a - y_c);
-        colour_step_ac = ((colour_a - colour_c) << 15) / (y_a - y_c);
+        colour_step_ac = ((shade_a - shade_c) << 15) / (y_a - y_c);
 	}
 
     int currentScanline = 0;
@@ -109,20 +139,20 @@ void main() {
 
             if (y_b < y_c) {
                 x_c = x_a <<= 16;
-                colour_c = colour_a <<= 15;
+                shade_c = shade_a <<= 15;
                 if (y_a < 0) {
                     x_c -= x_step_ac * y_a;
                     x_a -= x_step_ab * y_a;
-                    colour_c -= colour_step_ac * y_a;
-                    colour_a -= colour_step_ab * y_a;
+                    shade_c -= colour_step_ac * y_a;
+                    shade_a -= colour_step_ab * y_a;
                     y_a = 0;
                 }
 
                 x_b <<= 16;
-                colour_b <<= 15;
+                shade_b <<= 15;
                 if (y_b < 0) {
                     x_b -= x_step_bc * y_b;
-                    colour_b -= colour_step_bc * y_b;
+                    shade_b -= colour_step_bc * y_b;
                     y_b = 0;
                 }
 
@@ -131,45 +161,24 @@ void main() {
                     y_b -= y_a;
                     // yA = lineOffset[yA];
 
-                    if (scanline_y < y_b) {
-                        int delta_y = y_b - scanline_y;
-                        x_c += x_step_ac * delta_y;
-                        x_a += x_step_ab * delta_y;
-                        colour_c += colour_step_ac * delta_y;
-                        colour_a += colour_step_ab * delta_y;
-                        
-                        int scanlineXA = x_a >> 16;
-                        int scanlineXB = x_c >> 16;
-                        if (isOutsideScanline(scanlineXA, scanlineXB)) {
-                            discard;
+                    while (--y_b >= 0) {
+                        if (currentScanline == scanline_y) {
+                            int scanlineXA = x_a >> 16;
+                            int scanlineXB = x_c >> 16;
+                            if (isOutsideScanline(scanlineXA, scanlineXB)) {
+                                discard;
+                            }
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_a >> 7);
+                            return;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_a >> 7);
-                        return;
-                    } else {
-                        x_c += x_step_ac * y_b;
-                        x_a += x_step_ab * y_b;
-                        colour_c += colour_step_ac * y_b;
-                        colour_a += colour_step_ab * y_b;
+                        // gouraudRaster(xC >> 16, xA >> 16, colorC >> 7, colorA >> 7, data, yA, 0);
+                        x_c += x_step_ac;
+                        x_a += x_step_ab;
+                        shade_c += colour_step_ac;
+                        shade_a += colour_step_ab;
+                        // yA += width2d;
+                        currentScanline++;
                     }
-
-                    // while (--y_b >= 0) {
-                    //     if (currentScanline == scanline_y) {
-                    //         int scanlineXA = x_a >> 16;
-                    //         int scanlineXB = x_c >> 16;
-                    //         if (isOutsideScanline(scanlineXA, scanlineXB)) {
-                    //             discard;
-                    //         }
-                    //         fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_a >> 7);
-                    //         return;
-                    //     }
-                    //     // gouraudRaster(xC >> 16, xA >> 16, colorC >> 7, colorA >> 7, data, yA, 0);
-                    //     x_c += x_step_ac;
-                    //     x_a += x_step_ab;
-                    //     colour_c += colour_step_ac;
-                    //     colour_a += colour_step_ab;
-                    //     // yA += width2d;
-                    //     currentScanline++;
-                    // }
                     while (--y_c >= 0) {
                         if (currentScanline == scanline_y) {
                             int scanlineXA = x_c >> 16;
@@ -177,14 +186,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_b >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_b >> 7);
                             return;
                         }
                         // gouraudRaster(xC >> 16, xB >> 16, colorC >> 7, colorB >> 7, data, yA, 0);
                         x_c += x_step_ac;
                         x_b += x_step_bc;
-                        colour_c += colour_step_ac;
-                        colour_b += colour_step_bc;
+                        shade_c += colour_step_ac;
+                        shade_b += colour_step_bc;
                         // yA += width2d;
                         currentScanline++;
                     }
@@ -200,14 +209,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_c >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_c >> 7);
                             return;
                         }
                         // gouraudRaster(xA >> 16, xC >> 16, colorA >> 7, colorC >> 7, data, yA, 0);
                         x_c += x_step_ac;
                         x_a += x_step_ab;
-                        colour_c += colour_step_ac;
-                        colour_a += colour_step_ab;
+                        shade_c += colour_step_ac;
+                        shade_a += colour_step_ab;
                         // yA += width2d;
                         currentScanline++;
                     }
@@ -218,34 +227,34 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_c >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_c >> 7);
                             return;
                         }
                         // gouraudRaster(xB >> 16, xC >> 16, colorB >> 7, colorC >> 7, data, yA, 0);
                         x_c += x_step_ac;
                         x_b += x_step_bc;
-                        colour_c += colour_step_ac;
-                        colour_b += colour_step_bc;
+                        shade_c += colour_step_ac;
+                        shade_b += colour_step_bc;
                         // yA += width2d;
                         currentScanline++;
                     }
                 }
             } else {
                 x_b = x_a <<= 16;
-                colour_b = colour_a <<= 15;
+                shade_b = shade_a <<= 15;
                 if (y_a < 0) {
                     x_b -= x_step_ac * y_a;
                     x_a -= x_step_ab * y_a;
-                    colour_b -= colour_step_ac * y_a;
-                    colour_a -= colour_step_ab * y_a;
+                    shade_b -= colour_step_ac * y_a;
+                    shade_a -= colour_step_ab * y_a;
                     y_a = 0;
                 }
 
                 x_c <<= 16;
-                colour_c <<= 15;
+                shade_c <<= 15;
                 if (y_c < 0) {
                     x_c -= x_step_bc * y_c;
-                    colour_c -= colour_step_bc * y_c;
+                    shade_c -= colour_step_bc * y_c;
                     y_c = 0;
                 }
 
@@ -261,14 +270,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_a >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_a >> 7);
                             return;
                         }
                         // gouraudRaster(xB >> 16, xA >> 16, colorB >> 7, colorA >> 7, data, yA, 0);
                         x_b += x_step_ac;
                         x_a += x_step_ab;
-                        colour_b += colour_step_ac;
-                        colour_a += colour_step_ab;
+                        shade_b += colour_step_ac;
+                        shade_a += colour_step_ab;
                         // yA += width2d;
                         currentScanline++;
                     }
@@ -279,14 +288,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_a >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_a >> 7);
                             return;
                         }
                         // gouraudRaster(xC >> 16, xA >> 16, colorC >> 7, colorA >> 7, data, yA, 0);
                         x_c += x_step_bc;
                         x_a += x_step_ab;
-                        colour_c += colour_step_bc;
-                        colour_a += colour_step_ab;
+                        shade_c += colour_step_bc;
+                        shade_a += colour_step_ab;
                         // yA += width2d;
                         currentScanline++;
                     }
@@ -302,14 +311,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_b >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_b >> 7);
                             return;
                         }
                         // gouraudRaster(xA >> 16, xB >> 16, colorA >> 7, colorB >> 7, data, yA, 0);
                         x_b += x_step_ac;
                         x_a += x_step_ab;
-                        colour_b += colour_step_ac;
-                        colour_a += colour_step_ab;
+                        shade_b += colour_step_ac;
+                        shade_a += colour_step_ab;
                         // yA += width2d;
                         currentScanline++;
                     }
@@ -320,14 +329,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_c >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_c >> 7);
                             return;
                         }
                         // gouraudRaster(xA >> 16, xC >> 16, colorA >> 7, colorC >> 7, data, yA, 0);
                         x_c += x_step_bc;
                         x_a += x_step_ab;
-                        colour_c += colour_step_bc;
-                        colour_a += colour_step_ab;
+                        shade_c += colour_step_bc;
+                        shade_a += colour_step_ab;
                         // yA += width2d;
                         currentScanline++;
                     }
@@ -346,20 +355,20 @@ void main() {
 
 			if (y_c < y_a) {
 				x_a = x_b <<= 16;
-				colour_a = colour_b <<= 15;
+				shade_a = shade_b <<= 15;
 				if (y_b < 0) {
 					x_a -= x_step_ab * y_b;
 					x_b -= x_step_bc * y_b;
-					colour_a -= colour_step_ab * y_b;
-					colour_b -= colour_step_bc * y_b;
+					shade_a -= colour_step_ab * y_b;
+					shade_b -= colour_step_bc * y_b;
 					y_b = 0;
 				}
 
 				x_c <<= 16;
-				colour_c <<= 15;
+				shade_c <<= 15;
 				if (y_c < 0) {
 					x_c -= x_step_ac * y_c;
-					colour_c -= colour_step_ac * y_c;
+					shade_c -= colour_step_ac * y_c;
 					y_c = 0;
 				}
 
@@ -375,14 +384,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_b >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_b >> 7);
                             return;
                         }
 						// gouraudRaster(xA >> 16, xB >> 16, colorA >> 7, colorB >> 7, data, yB, 0);
 						x_a += x_step_ab;
 						x_b += x_step_bc;
-						colour_a += colour_step_ab;
-						colour_b += colour_step_bc;
+						shade_a += colour_step_ab;
+						shade_b += colour_step_bc;
 						// yB += width2d;
                         currentScanline++;
 					}
@@ -393,14 +402,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_c >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_c >> 7);
                             return;
                         }
 						// gouraudRaster(xA >> 16, xC >> 16, colorA >> 7, colorC >> 7, data, yB, 0);
 						x_a += x_step_ab;
 						x_c += x_step_ac;
-						colour_a += colour_step_ab;
-						colour_c += colour_step_ac;
+						shade_a += colour_step_ab;
+						shade_c += colour_step_ac;
 						// yB += width2d;
                         currentScanline++;
 					}
@@ -416,14 +425,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_a >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_a >> 7);
                             return;
                         }
 						// gouraudRaster(xB >> 16, xA >> 16, colorB >> 7, colorA >> 7, data, yB, 0);
 						x_a += x_step_ab;
 						x_b += x_step_bc;
-						colour_a += colour_step_ab;
-						colour_b += colour_step_bc;
+						shade_a += colour_step_ab;
+						shade_b += colour_step_bc;
 						// yB += width2d;
                         currentScanline++;
 					}
@@ -434,34 +443,34 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_a >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_a >> 7);
                             return;
                         }
 						// gouraudRaster(xC >> 16, xA >> 16, colorC >> 7, colorA >> 7, data, yB, 0);
 						x_a += x_step_ab;
 						x_c += x_step_ac;
-						colour_a += colour_step_ab;
-						colour_c += colour_step_ac;
+						shade_a += colour_step_ab;
+						shade_c += colour_step_ac;
 						// yB += width2d;
                         currentScanline++;
 					}
 				}
 			} else {
 				x_c = x_b <<= 16;
-				colour_c = colour_b <<= 15;
+				shade_c = shade_b <<= 15;
 				if (y_b < 0) {
 					x_c -= x_step_ab * y_b;
 					x_b -= x_step_bc * y_b;
-					colour_c -= colour_step_ab * y_b;
-					colour_b -= colour_step_bc * y_b;
+					shade_c -= colour_step_ab * y_b;
+					shade_b -= colour_step_bc * y_b;
 					y_b = 0;
 				}
 
 				x_a <<= 16;
-				colour_a <<= 15;
+				shade_a <<= 15;
 				if (y_a < 0) {
 					x_a -= x_step_ac * y_a;
-					colour_a -= colour_step_ac * y_a;
+					shade_a -= colour_step_ac * y_a;
 					y_a = 0;
 				}
 
@@ -477,14 +486,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_b >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_b >> 7);
                             return;
                         }
 						// gouraudRaster(xC >> 16, xB >> 16, colorC >> 7, colorB >> 7, data, yB, 0);
 						x_c += x_step_ab;
 						x_b += x_step_bc;
-						colour_c += colour_step_ab;
-						colour_b += colour_step_bc;
+						shade_c += colour_step_ab;
+						shade_b += colour_step_bc;
 						// yB += width2d;
                         currentScanline++;
 					}
@@ -495,14 +504,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_b >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_b >> 7);
                             return;
                         }
 						// gouraudRaster(xA >> 16, xB >> 16, colorA >> 7, colorB >> 7, data, yB, 0);
 						x_a += x_step_ac;
 						x_b += x_step_bc;
-						colour_a += colour_step_ac;
-						colour_b += colour_step_bc;
+						shade_a += colour_step_ac;
+						shade_b += colour_step_bc;
 						// yB += width2d;
                         currentScanline++;
 					}
@@ -518,14 +527,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_c >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_c >> 7);
                             return;
                         }
 						// gouraudRaster(xB >> 16, xC >> 16, colorB >> 7, colorC >> 7, data, yB, 0);
 						x_c += x_step_ab;
 						x_b += x_step_bc;
-						colour_c += colour_step_ab;
-						colour_b += colour_step_bc;
+						shade_c += colour_step_ab;
+						shade_b += colour_step_bc;
 						// yB += width2d;
                         currentScanline++;
 					}
@@ -536,14 +545,14 @@ void main() {
                             if (isOutsideScanline(scanlineXA, scanlineXB)) {
                                 discard;
                             }
-                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_a >> 7);
+                            fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_a >> 7);
                             return;
                         }
 						// gouraudRaster(xB >> 16, xA >> 16, colorB >> 7, colorA >> 7, data, yB, 0);
 						x_a += x_step_ac;
 						x_b += x_step_bc;
-						colour_a += colour_step_ac;
-						colour_b += colour_step_bc;
+						shade_a += colour_step_ac;
+						shade_b += colour_step_bc;
 						// yB += width2d;
                         currentScanline++;
 					}
@@ -561,20 +570,20 @@ void main() {
 
 		if (y_a < y_b) {
 			x_b = x_c <<= 16;
-			colour_b = colour_c <<= 15;
+			shade_b = shade_c <<= 15;
 			if (y_c < 0) {
 				x_b -= x_step_bc * y_c;
 				x_c -= x_step_ac * y_c;
-				colour_b -= colour_step_bc * y_c;
-				colour_c -= colour_step_ac * y_c;
+				shade_b -= colour_step_bc * y_c;
+				shade_c -= colour_step_ac * y_c;
 				y_c = 0;
 			}
 
 			x_a <<= 16;
-			colour_a <<= 15;
+			shade_a <<= 15;
 			if (y_a < 0) {
 				x_a -= x_step_ab * y_a;
-				colour_a -= colour_step_ab * y_a;
+				shade_a -= colour_step_ab * y_a;
 				y_a = 0;
 			}
 
@@ -590,14 +599,14 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_c >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_c >> 7);
                         return;
                     }
 					// gouraudRaster(xB >> 16, xC >> 16, colorB >> 7, colorC >> 7, data, yC, 0);
 					x_b += x_step_bc;
 					x_c += x_step_ac;
-					colour_b += colour_step_bc;
-					colour_c += colour_step_ac;
+					shade_b += colour_step_bc;
+					shade_c += colour_step_ac;
 					// yC += width2d;
                     currentScanline++;
 				}
@@ -608,14 +617,14 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_a >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_a >> 7);
                         return;
                     }
 					// gouraudRaster(xB >> 16, xA >> 16, colorB >> 7, colorA >> 7, data, yC, 0);
 					x_b += x_step_bc;
 					x_a += x_step_ab;
-					colour_b += colour_step_bc;
-					colour_a += colour_step_ab;
+					shade_b += colour_step_bc;
+					shade_a += colour_step_ab;
 					// yC += width2d;
                     currentScanline++;
 				}
@@ -631,14 +640,14 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_b >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_b >> 7);
                         return;
                     }
 					// gouraudRaster(xC >> 16, xB >> 16, colorC >> 7, colorB >> 7, data, yC, 0);
 					x_b += x_step_bc;
 					x_c += x_step_ac;
-					colour_b += colour_step_bc;
-					colour_c += colour_step_ac;
+					shade_b += colour_step_bc;
+					shade_c += colour_step_ac;
 					// yC += width2d;
                     currentScanline++;
 				}
@@ -649,34 +658,34 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_b >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_b >> 7);
                         return;
                     }
 					// gouraudRaster(xA >> 16, xB >> 16, colorA >> 7, colorB >> 7, data, yC, 0);
 					x_b += x_step_bc;
 					x_a += x_step_ab;
-					colour_b += colour_step_bc;
-					colour_a += colour_step_ab;
+					shade_b += colour_step_bc;
+					shade_a += colour_step_ab;
 					// yC += width2d;
                     currentScanline++;
 				}
 			}
         } else {
 			x_a = x_c <<= 16;
-			colour_a = colour_c <<= 15;
+			shade_a = shade_c <<= 15;
 			if (y_c < 0) {
 				x_a -= x_step_bc * y_c;
 				x_c -= x_step_ac * y_c;
-				colour_a -= colour_step_bc * y_c;
-				colour_c -= colour_step_ac * y_c;
+				shade_a -= colour_step_bc * y_c;
+				shade_c -= colour_step_ac * y_c;
 				y_c = 0;
 			}
 
 			x_b <<= 16;
-			colour_b <<= 15;
+			shade_b <<= 15;
 			if (y_b < 0) {
 				x_b -= x_step_ab * y_b;
-				colour_b -= colour_step_ab * y_b;
+				shade_b -= colour_step_ab * y_b;
 				y_b = 0;
 			}
 
@@ -691,14 +700,14 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_a >> 7, colour_c >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_a >> 7, shade_c >> 7);
                         return;
                     }
                     // gouraudRaster(xA >> 16, xC >> 16, colorA >> 7, colorC >> 7, data, yC, 0);
                     x_a += x_step_bc;
                     x_c += x_step_ac;
-                    colour_a += colour_step_bc;
-                    colour_c += colour_step_ac;
+                    shade_a += colour_step_bc;
+                    shade_c += colour_step_ac;
                     // yC += width2d;
                     currentScanline++;
                 }
@@ -709,14 +718,14 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_b >> 7, colour_c >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_b >> 7, shade_c >> 7);
                         return;
                     }
                     // gouraudRaster(xB >> 16, xC >> 16, colorB >> 7, colorC >> 7, data, yC, 0);
                     x_b += x_step_ab;
                     x_c += x_step_ac;
-                    colour_b += colour_step_ab;
-                    colour_c += colour_step_ac;
+                    shade_b += colour_step_ab;
+                    shade_c += colour_step_ac;
                     // yC += width2d;
                     currentScanline++;
                 }
@@ -731,14 +740,14 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_a >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_a >> 7);
                         return;
                     }
 					// gouraudRaster(xC >> 16, xA >> 16, colorC >> 7, colorA >> 7, data, yC, 0);
 					x_a += x_step_bc;
 					x_c += x_step_ac;
-					colour_a += colour_step_bc;
-					colour_c += colour_step_ac;
+					shade_a += colour_step_bc;
+					shade_c += colour_step_ac;
 					// yC += width2d;
                     currentScanline++;
 				}
@@ -749,14 +758,14 @@ void main() {
                         if (isOutsideScanline(scanlineXA, scanlineXB)) {
                             discard;
                         }
-                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, colour_c >> 7, colour_b >> 7);
+                        fragColor.rgb = getScanlineColor(scanlineXA, scanlineXB, shade_c >> 7, shade_b >> 7);
                         return;
                     }
 					// gouraudRaster(xC >> 16, xB >> 16, colorC >> 7, colorB >> 7, data, yC, 0);
 					x_b += x_step_ab;
 					x_c += x_step_ac;
-					colour_b += colour_step_ab;
-					colour_c += colour_step_ac;
+					shade_b += colour_step_ab;
+					shade_c += colour_step_ac;
 					// yC += width2d;
                     currentScanline++;
 				}
@@ -767,5 +776,3 @@ void main() {
     discard;
     // fragColor = vec4(1.0, 1.0, 1.0, 1.0);
 }
-
-`.trim();
