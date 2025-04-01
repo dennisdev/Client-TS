@@ -4,6 +4,8 @@ export const SHADER_CODE: string = `
 precision highp float;
 precision highp int;
 
+uniform highp float u_triangleCount;
+
 uniform highp isampler2D u_triangleData;
 
 flat out ivec4 v_data0;
@@ -31,6 +33,8 @@ void main() {
     v_data3 = texelFetch(u_triangleData, ivec2(triangleIndex + 3, 0), 0);
     v_data4 = texelFetch(u_triangleData, ivec2(triangleIndex + 4, 0), 0);
 
+    float depth = 1.0 - float(v_data4.w) / u_triangleCount;
+
     int vertexIndex = gl_VertexID % 3;
 
     // vec2 screenPos = vec2(xs[vertexIndex], ys[vertexIndex]);
@@ -40,6 +44,6 @@ void main() {
     // // flip y
     // gl_Position.y *= -1.0;
 
-    gl_Position = vec4(vertices[vertexIndex], 0.0, 1.0);
+    gl_Position = vec4(vertices[vertexIndex], depth, 1.0);
 }
 `.trim();

@@ -51,6 +51,7 @@ export class RendererWebGL extends Renderer {
 
     viewportFramebuffer!: WebGLFramebuffer;
     viewportColorTarget!: WebGLTexture;
+    viewportDepthTarget!: WebGLRenderbuffer;
 
     hslToRgbTexture!: WebGLTexture;
 
@@ -105,6 +106,7 @@ export class RendererWebGL extends Renderer {
 
     init(): void {
         this.gl.enable(this.gl.CULL_FACE);
+        this.gl.depthFunc(this.gl.LEQUAL);
 
         const pixMapVertShader: Shader = new Shader(this.gl, this.gl.VERTEX_SHADER, pixMapVertShaderCode);
         const pixMapFragShader: Shader = new Shader(this.gl, this.gl.FRAGMENT_SHADER, pixMapFragShaderCode);
@@ -133,6 +135,11 @@ export class RendererWebGL extends Renderer {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
         this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.viewportColorTarget, 0);
+
+        this.viewportDepthTarget = this.gl.createRenderbuffer()!;
+        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, this.viewportDepthTarget);
+        this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT24, viewportWidth, viewportHeight);
+        this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, this.gl.DEPTH_ATTACHMENT, this.gl.RENDERBUFFER, this.viewportDepthTarget);
 
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
@@ -248,10 +255,12 @@ export class RendererWebGL extends Renderer {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.viewportFramebuffer);
         this.gl.viewport(0, 0, viewportWidth, viewportHeight);
 
-        this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+        this.gl.enable(this.gl.DEPTH_TEST);
 
-        // console.log('Rendering scene', this.gouraudTriangleCount);
+        this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+        // console.log('Rendering scene', this.triangleCount);
 
         if (this.gouraudTriangleCount > 0) {
             const texture: WebGLTexture = this.gl.createTexture()!;
@@ -288,6 +297,7 @@ export class RendererWebGL extends Renderer {
 
             this.textureTriangleProgram.use();
 
+            this.gl.uniform1f(this.textureTriangleProgram.getUniformLocation('u_triangleCount'), this.triangleCount);
             this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_triangleData'), 0);
             // this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_hslToRgb'), 1);
             this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_textures'), 2);
@@ -298,6 +308,8 @@ export class RendererWebGL extends Renderer {
         }
 
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+        
+        this.gl.disable(this.gl.DEPTH_TEST);
     }
 
     override fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): boolean {
@@ -344,6 +356,7 @@ export class RendererWebGL extends Renderer {
         // this.gouraudTriangleData[offset++] = (yC << 16) | colorA;
         // this.gouraudTriangleData[offset++] = (colorB << 16) | colorC;
 
+        this.triangleCount++;
         this.gouraudTriangleCount++;
 
         return true;
@@ -413,7 +426,9 @@ export class RendererWebGL extends Renderer {
         this.textureTriangleDataView.setInt32(offset++ * 4, tzB, true);
         this.textureTriangleDataView.setInt32(offset++ * 4, tzC, true);
         this.textureTriangleDataView.setInt32(offset++ * 4, texture, true);
+        this.textureTriangleDataView.setInt32(offset++ * 4, this.triangleCount, true);
 
+        this.triangleCount++;
         this.textureTriangleCount++;
 
         return true;
