@@ -14,10 +14,10 @@ import { SHADER_CODE as pixMapFragShaderCode } from './shaders/fullscreen-pixmap
 import { SHADER_CODE as pixMapVertShaderCode } from './shaders/fullscreen-pixmap.vert.glsl';
 import { SHADER_CODE as textureFragShaderCode } from './shaders/fullscreen-texture.frag.glsl';
 import { SHADER_CODE as textureVertShaderCode } from './shaders/fullscreen-texture.vert.glsl';
-import { SHADER_CODE as mainFragShaderCode } from './shaders/main.frag.glsl';
+import mainFragShaderCode from './shaders/main.frag.glsl' with { type: 'text' };
 import { SHADER_CODE as mainVertShaderCode } from './shaders/main.vert.glsl';
 import { SHADER_CODE as textureTriangleVertShaderCode } from './shaders/texture.vert.glsl';
-import { SHADER_CODE as textureTriangleFragShaderCode } from './shaders/texture.frag.glsl';
+import textureTriangleFragShaderCode from './shaders/texture.frag.glsl' with { type: 'text' };
 
 const INITIAL_TRIANGLES: number = 100000;
 
@@ -61,6 +61,8 @@ export class RendererWebGL extends Renderer {
     texturesUsed: boolean[] = new Array(MAX_TEXTURE_COUNT).fill(false);
 
     isRenderingScene: boolean = false;
+
+    triangleCount: number = 0;
 
     gouraudTriangleData: Uint32Array = new Uint32Array(INITIAL_TRIANGLES * 4);
     gouraudTriangleDataView: DataView = new DataView(this.gouraudTriangleData.buffer);
@@ -174,6 +176,10 @@ export class RendererWebGL extends Renderer {
                 new Uint8Array(texels.buffer),
             );
         }
+
+        this.gl.activeTexture(this.gl.TEXTURE2);
+        this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.textureArray);
+        this.gl.activeTexture(this.gl.TEXTURE0);
     }
 
     override startFrame(): void {
@@ -228,6 +234,7 @@ export class RendererWebGL extends Renderer {
 
     override startRenderScene(): void {
         this.isRenderingScene = true;
+        this.triangleCount = 0;
         this.gouraudTriangleCount = 0;
         this.textureTriangleCount = 0;
     }
@@ -282,7 +289,8 @@ export class RendererWebGL extends Renderer {
             this.textureTriangleProgram.use();
 
             this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_triangleData'), 0);
-            this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_hslToRgb'), 1);
+            // this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_hslToRgb'), 1);
+            this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_textures'), 2);
 
             this.gl.drawArrays(this.gl.TRIANGLES, 0, this.textureTriangleCount * 3);
 
