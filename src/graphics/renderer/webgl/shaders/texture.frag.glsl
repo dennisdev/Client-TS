@@ -12,6 +12,8 @@ flat in ivec4 v_data2;
 flat in ivec4 v_data3;
 flat in ivec4 v_data4;
 
+flat in float v_textureOpaque;
+
 out vec4 fragColor;
 
 const int width = 512;
@@ -211,9 +213,9 @@ int calc_texel_colour(
 
     int rgb = get_texel((cur_v & 0x3F80) + (cur_u >> 7), texture_id) >> shade_shift;
 
-    if (rgb == 0) {
-        return 0xff0000;
-    }
+    // if (rgb == 0) {
+    //     return 0xff0000;
+    // }
 
     return rgb;
 }
@@ -238,6 +240,8 @@ void main() {
     int tz_b = v_data4.x;
     int tz_c = v_data4.y;
     int texture_id = v_data4.z;
+
+    bool opaque = v_textureOpaque == 1.0;
 
     int min_scanline_y = max(min(y_a, min(y_b, y_c)), 0);
     int max_scanline_y = max(y_a, max(y_b, y_c));
@@ -370,7 +374,7 @@ void main() {
                             shade_c >> 8, 
                             shade_a >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -410,7 +414,7 @@ void main() {
                             shade_c >> 8, 
                             shade_b >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -507,7 +511,7 @@ void main() {
                             shade_a >> 8, 
                             shade_c >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -547,7 +551,7 @@ void main() {
                             shade_b >> 8, 
                             shade_c >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -671,7 +675,7 @@ void main() {
                             shade_a >> 8, 
                             shade_b >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -711,7 +715,7 @@ void main() {
                             shade_a >> 8, 
                             shade_c >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -808,7 +812,7 @@ void main() {
                             shade_b >> 8, 
                             shade_a >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -848,7 +852,7 @@ void main() {
                             shade_c >> 8, 
                             shade_a >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -984,7 +988,7 @@ void main() {
                             shade_a >> 8, 
                             shade_b >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1024,7 +1028,7 @@ void main() {
                             shade_a >> 8, 
                             shade_c >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1123,7 +1127,7 @@ void main() {
                             shade_b >> 8, 
                             shade_a >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1163,7 +1167,7 @@ void main() {
                             shade_c >> 8, 
                             shade_a >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1289,7 +1293,7 @@ void main() {
                             shade_c >> 8, 
                             shade_b >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1329,7 +1333,7 @@ void main() {
                             shade_a >> 8, 
                             shade_b >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1428,7 +1432,7 @@ void main() {
                             shade_b >> 8, 
                             shade_c >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1468,7 +1472,7 @@ void main() {
                             shade_b >> 8, 
                             shade_a >> 8
                         );
-                        if (rgb != 0) {
+                        if (opaque || rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
@@ -1605,7 +1609,7 @@ void main() {
                         shade_b >> 8, 
                         shade_c >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
@@ -1645,7 +1649,7 @@ void main() {
                         shade_b >> 8, 
                         shade_a >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
@@ -1744,7 +1748,7 @@ void main() {
                         shade_c >> 8, 
                         shade_b >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
@@ -1784,7 +1788,7 @@ void main() {
                         shade_a >> 8, 
                         shade_b >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
@@ -1910,7 +1914,7 @@ void main() {
                         shade_a >> 8, 
                         shade_c >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
@@ -1950,7 +1954,7 @@ void main() {
                         shade_b >> 8, 
                         shade_c >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
@@ -2049,7 +2053,7 @@ void main() {
                         shade_c >> 8, 
                         shade_a >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
@@ -2089,7 +2093,7 @@ void main() {
                         shade_c >> 8, 
                         shade_b >> 8
                     );
-                    if (rgb != 0) {
+                    if (opaque || rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }

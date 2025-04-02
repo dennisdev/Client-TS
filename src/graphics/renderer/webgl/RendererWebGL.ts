@@ -320,6 +320,12 @@ export class RendererWebGL extends Renderer {
 
             this.textureTriangleProgram.use();
 
+            const textureTranslucent = new Int32Array(Pix3D.textureTranslucent.length);
+            for (let i = 0; i < textureTranslucent.length; i++) {
+                textureTranslucent[i] = Pix3D.textureTranslucent[i] ? 1 : 0;
+            }
+
+            this.gl.uniform1iv(this.textureTriangleProgram.getUniformLocation('u_textureTranslucent'), textureTranslucent);
             this.gl.uniform1f(this.textureTriangleProgram.getUniformLocation('u_triangleCount'), this.triangleCount);
             this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_triangleData'), 0);
             // this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_hslToRgb'), 1);

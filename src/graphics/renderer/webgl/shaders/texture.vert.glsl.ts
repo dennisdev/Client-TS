@@ -4,6 +4,8 @@ export const SHADER_CODE: string = `
 precision highp float;
 precision highp int;
 
+uniform bool u_textureTranslucent[50];
+
 uniform highp float u_triangleCount;
 
 uniform highp isampler2D u_triangleData;
@@ -13,6 +15,8 @@ flat out ivec4 v_data1;
 flat out ivec4 v_data2;
 flat out ivec4 v_data3;
 flat out ivec4 v_data4;
+
+flat out float v_textureOpaque;
 
 const float width = 512.0;
 const float height = 334.0;
@@ -36,6 +40,8 @@ void main() {
     v_data2 = fetchData(triangleIndex + 2);
     v_data3 = fetchData(triangleIndex + 3);
     v_data4 = fetchData(triangleIndex + 4);
+
+    v_textureOpaque = u_textureTranslucent[v_data4.z] ? 0.0 : 1.0;
 
     float depth = 1.0 - float(v_data4.w) / u_triangleCount;
 
