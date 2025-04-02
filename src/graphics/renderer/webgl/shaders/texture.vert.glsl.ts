@@ -24,14 +24,18 @@ const vec2 vertices[3] = vec2[3](
     vec2(-1,  3)
 );
 
+ivec4 fetchData(int index) {
+    return texelFetch(u_triangleData, ivec2(index % 4096, index / 4096), 0);
+}
+
 void main() {
     int triangleIndex = gl_VertexID / 3 * 5;
     
-    v_data0 = texelFetch(u_triangleData, ivec2(triangleIndex, 0), 0);
-    v_data1 = texelFetch(u_triangleData, ivec2(triangleIndex + 1, 0), 0);
-    v_data2 = texelFetch(u_triangleData, ivec2(triangleIndex + 2, 0), 0);
-    v_data3 = texelFetch(u_triangleData, ivec2(triangleIndex + 3, 0), 0);
-    v_data4 = texelFetch(u_triangleData, ivec2(triangleIndex + 4, 0), 0);
+    v_data0 = fetchData(triangleIndex);
+    v_data1 = fetchData(triangleIndex + 1);
+    v_data2 = fetchData(triangleIndex + 2);
+    v_data3 = fetchData(triangleIndex + 3);
+    v_data4 = fetchData(triangleIndex + 4);
 
     float depth = 1.0 - float(v_data4.w) / u_triangleCount;
 

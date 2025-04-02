@@ -296,11 +296,22 @@ export class RendererWebGL extends Renderer {
         }
 
         if (this.textureTriangleCount > 0) {
+            const dataPixels = this.textureTriangleCount * 5;
+            const dataWidth = 4096;
+            const dataHeight = Math.ceil(dataPixels / dataWidth);
+
+            if (dataWidth * dataHeight > this.textureTriangleData.length) {
+                const newData: Int32Array = new Int32Array(dataWidth * dataHeight);
+                newData.set(this.textureTriangleData);
+                this.textureTriangleData = newData;
+                this.textureTriangleDataView = new DataView(this.textureTriangleData.buffer);
+            }
+
             // console.log('Rendering scene', this.textureTriangleCount);
             const texture: WebGLTexture = this.gl.createTexture()!;
             this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-            this.gl.texStorage2D(this.gl.TEXTURE_2D, 1, this.gl.RGBA32I, this.textureTriangleCount * 5, 1);
-            this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, this.textureTriangleCount * 5, 1, this.gl.RGBA_INTEGER, this.gl.INT, this.textureTriangleData);
+            this.gl.texStorage2D(this.gl.TEXTURE_2D, 1, this.gl.RGBA32I, dataWidth, dataHeight);
+            this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, dataWidth, dataHeight, this.gl.RGBA_INTEGER, this.gl.INT, this.textureTriangleData);
 
             this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
             this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
