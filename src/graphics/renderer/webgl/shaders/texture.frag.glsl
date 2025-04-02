@@ -208,10 +208,14 @@ int calc_texel_colour(
 
     cur_u += step_u * (scanline_x & 0x7);
     cur_v += step_v * (scanline_x & 0x7);
-    
-    // TODO: get correct uv for frag
 
-    return get_texel((cur_v & 0x3F80) + (cur_u >> 7), texture_id) >> shade_shift;
+    int rgb = get_texel((cur_v & 0x3F80) + (cur_u >> 7), texture_id) >> shade_shift;
+
+    if (rgb == 0) {
+        return 0xff0000;
+    }
+
+    return rgb;
 }
 
 void main() {
@@ -238,7 +242,7 @@ void main() {
     int min_scanline_y = max(min(y_a, min(y_b, y_c)), 0);
     int max_scanline_y = max(y_a, max(y_b, y_c));
     int scanline_y = height - int(gl_FragCoord.y) - 1 - min_scanline_y;
-    if (scanline_y < 0 || scanline_y > max_scanline_y - min_scanline_y) {
+    if (scanline_y < 0 || scanline_y >= max_scanline_y - min_scanline_y) {
         discard;
     }
 

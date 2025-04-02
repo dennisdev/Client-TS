@@ -82,7 +82,7 @@ void main() {
     int min_scanline_y = max(min(y_a, min(y_b, y_c)), 0);
     int max_scanline_y = max(y_a, max(y_b, y_c));
     int scanline_y = height - int(gl_FragCoord.y) - 1 - min_scanline_y;
-    if (scanline_y < 0 || scanline_y > max_scanline_y - min_scanline_y) {
+    if (scanline_y < 0 || scanline_y >= max_scanline_y - min_scanline_y) {
         discard;
     }
 
