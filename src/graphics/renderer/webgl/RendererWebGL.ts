@@ -19,7 +19,7 @@ import { SHADER_CODE as mainVertShaderCode } from './shaders/main.vert.glsl';
 import { SHADER_CODE as textureTriangleVertShaderCode } from './shaders/texture.vert.glsl';
 import textureTriangleFragShaderCode from './shaders/texture.frag.glsl' with { type: 'text' };
 
-const INITIAL_TRIANGLES: number = 100000;
+const INITIAL_TRIANGLES: number = 4096;
 
 const MAX_TEXTURE_COUNT = 50;
 const MAX_TEXTURE_SIZE = 128;
@@ -65,7 +65,7 @@ export class RendererWebGL extends Renderer {
 
     triangleCount: number = 0;
 
-    gouraudTriangleData: Uint32Array = new Uint32Array(INITIAL_TRIANGLES * 4);
+    gouraudTriangleData: Int32Array = new Int32Array(INITIAL_TRIANGLES * 12);
     gouraudTriangleDataView: DataView = new DataView(this.gouraudTriangleData.buffer);
     gouraudTriangleCount: number = 0;
 
@@ -263,10 +263,21 @@ export class RendererWebGL extends Renderer {
         // console.log('Rendering scene', this.triangleCount);
 
         if (this.gouraudTriangleCount > 0) {
+            const dataPixels = this.gouraudTriangleCount * 3;
+            const dataWidth = 4096;
+            const dataHeight = Math.ceil(dataPixels / dataWidth);
+
+            if (dataWidth * dataHeight > this.gouraudTriangleData.length) {
+                const newData: Int32Array = new Int32Array(dataWidth * dataHeight);
+                newData.set(this.gouraudTriangleData);
+                this.gouraudTriangleData = newData;
+                this.gouraudTriangleDataView = new DataView(this.gouraudTriangleData.buffer);
+            }
+
             const texture: WebGLTexture = this.gl.createTexture()!;
             this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-            this.gl.texStorage2D(this.gl.TEXTURE_2D, 1, this.gl.RGBA32UI, this.gouraudTriangleCount, 1);
-            this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, this.gouraudTriangleCount, 1, this.gl.RGBA_INTEGER, this.gl.UNSIGNED_INT, this.gouraudTriangleData);
+            this.gl.texStorage2D(this.gl.TEXTURE_2D, 1, this.gl.RGBA32I, dataWidth, dataHeight);
+            this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, dataWidth, dataHeight, this.gl.RGBA_INTEGER, this.gl.INT, this.gouraudTriangleData);
 
             this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
             this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
@@ -275,6 +286,7 @@ export class RendererWebGL extends Renderer {
 
             this.mainProgram.use();
 
+            this.gl.uniform1f(this.mainProgram.getUniformLocation('u_triangleCount'), this.triangleCount);
             this.gl.uniform1i(this.mainProgram.getUniformLocation('u_triangleData'), 0);
             this.gl.uniform1i(this.mainProgram.getUniformLocation('u_hslToRgb'), 1);
 
@@ -312,10 +324,34 @@ export class RendererWebGL extends Renderer {
         this.gl.disable(this.gl.DEPTH_TEST);
     }
 
-    override fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): boolean {
+    override fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number, hsl: number): boolean {
         if (!this.isRenderingScene) {
             return false;
         }
+
+        let offset: number = (this.gouraudTriangleCount + 1) * 12;
+
+        if (offset >= this.gouraudTriangleData.length) {
+            const newData: Int32Array = new Int32Array(this.gouraudTriangleData.length * 2);
+            newData.set(this.gouraudTriangleData);
+            this.gouraudTriangleData = newData;
+            this.gouraudTriangleDataView = new DataView(this.gouraudTriangleData.buffer);
+        }
+        
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, x0, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, x1, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, x2, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, y0, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, y1, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, y2, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, hsl, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, hsl, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, hsl, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, this.triangleCount, true);
+
+        this.triangleCount++;
+        this.gouraudTriangleCount++;
+
         return true;
     }
 
@@ -324,37 +360,25 @@ export class RendererWebGL extends Renderer {
             return false;
         }
 
-        let offset: number = (this.gouraudTriangleCount + 1) * 4;
+        let offset: number = (this.gouraudTriangleCount + 1) * 12;
 
         if (offset >= this.gouraudTriangleData.length) {
-            const newData: Uint32Array = new Uint32Array(this.gouraudTriangleData.length * 2);
+            const newData: Int32Array = new Int32Array(this.gouraudTriangleData.length * 2);
             newData.set(this.gouraudTriangleData);
             this.gouraudTriangleData = newData;
             this.gouraudTriangleDataView = new DataView(this.gouraudTriangleData.buffer);
         }
-
-        xA += 2048;
-        xB += 2048;
-        xC += 2048;
-        yA += 2048;
-        yB += 2048;
-        yC += 2048;
-
-        if (xA < 0 || xA >= 4096 || xB < 0 || xB >= 4096 || xC < 0 || xC >= 4096 ||
-            yA < 0 || yA >= 4096 || yB < 0 || yB >= 4096 || yC < 0 || yC >= 4096) {
-            console.log('Gouraud triangle out of bounds', xA, xB, xC, yA, yB, yC);
-            return true;
-        }
-
-        this.gouraudTriangleDataView.setUint32(offset++ * 4, (xA << 20) | (xB << 8) | (xC >> 4), true);
-        this.gouraudTriangleDataView.setUint32(offset++ * 4, (yA << 20) | (yB << 8) | (xC & 0xf), true);
-        this.gouraudTriangleDataView.setUint32(offset++ * 4, (yC << 16) | colorA, true);
-        this.gouraudTriangleDataView.setUint32(offset++ * 4, (colorB << 16) | colorC, true);
-
-        // this.gouraudTriangleData[offset++] = (xA << 20) | (xB << 8) | (xC >> 4);
-        // this.gouraudTriangleData[offset++] = (yA << 20) | (yB << 8) | (xC & 0xf);
-        // this.gouraudTriangleData[offset++] = (yC << 16) | colorA;
-        // this.gouraudTriangleData[offset++] = (colorB << 16) | colorC;
+        
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, xA, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, xB, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, xC, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, yA, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, yB, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, yC, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, colorA, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, colorB, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, colorC, true);
+        this.gouraudTriangleDataView.setInt32(offset++ * 4, this.triangleCount, true);
 
         this.triangleCount++;
         this.gouraudTriangleCount++;

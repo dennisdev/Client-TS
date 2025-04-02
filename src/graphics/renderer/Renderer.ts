@@ -59,9 +59,9 @@ export abstract class Renderer {
         Renderer.renderer?.endRenderScene();
     }
 
-    static fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): boolean {
+    static fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number, hsl: number): boolean {
         if (Renderer.renderer) {
-            return Renderer.renderer.fillTriangle(x0, x1, x2, y0, y1, y2, color);
+            return Renderer.renderer.fillTriangle(x0, x1, x2, y0, y1, y2, color, hsl);
         }
         return false;
     };
@@ -152,7 +152,7 @@ export abstract class Renderer {
 
     abstract endRenderScene(): void;
 
-    abstract fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): boolean;
+    abstract fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number, hsl: number): boolean;
 
     abstract fillGouraudTriangle(xA: number, xB: number, xC: number, yA: number, yB: number, yC: number, colorA: number, colorB: number, colorC: number): boolean;
 

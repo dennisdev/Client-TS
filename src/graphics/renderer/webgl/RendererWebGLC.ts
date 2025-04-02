@@ -480,7 +480,7 @@ export class RendererWebGLC extends Renderer {
     updateTexture(id: number): void {
     }
 
-    fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): boolean {
+    fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number, hsl: number): boolean {
         return false;
     }
 

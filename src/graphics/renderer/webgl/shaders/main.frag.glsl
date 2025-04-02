@@ -5,9 +5,9 @@ precision highp int;
 
 uniform highp sampler2D u_hslToRgb;
 
-flat in ivec3 xs;
-flat in ivec3 ys;
-flat in ivec3 colors;
+flat in ivec4 v_data0;
+flat in ivec4 v_data1;
+flat in ivec4 v_data2;
 
 out vec4 fragColor;
 
@@ -69,15 +69,15 @@ vec3 calc_scanline_colour(int x_a, int x_b, int colour_a, int colour_b) {
 }
 
 void main() {
-    int x_a = xs.x;
-    int x_b = xs.y;
-    int x_c = xs.z;
-    int y_a = ys.x;
-    int y_b = ys.y;
-    int y_c = ys.z;
-    int colour_a = colors.x;
-    int colour_b = colors.y;
-    int colour_c = colors.z;
+    int x_a = v_data0.x;
+    int x_b = v_data0.y;
+    int x_c = v_data0.z;
+    int y_a = v_data0.w;
+    int y_b = v_data1.x;
+    int y_c = v_data1.y;
+    int colour_a = v_data1.z;
+    int colour_b = v_data1.w;
+    int colour_c = v_data2.x;
 
     int min_scanline_y = max(min(y_a, min(y_b, y_c)), 0);
     int max_scanline_y = max(y_a, max(y_b, y_c));

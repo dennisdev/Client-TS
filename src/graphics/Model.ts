@@ -2143,7 +2143,7 @@ export default class Model extends DoublyLinkable {
                 this.faceColorC[face]
             );
         } else if (type === 1 && this.faceColorA && Model.vertexScreenX && Model.vertexScreenY) {
-            Pix3D.fillTriangle(Model.vertexScreenX[a], Model.vertexScreenX[b], Model.vertexScreenX[c], Model.vertexScreenY[a], Model.vertexScreenY[b], Model.vertexScreenY[c], Pix3D.hslPal[this.faceColorA[face]]);
+            Pix3D.fillTriangle(Model.vertexScreenX[a], Model.vertexScreenX[b], Model.vertexScreenX[c], Model.vertexScreenY[a], Model.vertexScreenY[b], Model.vertexScreenY[c], Pix3D.hslPal[this.faceColorA[face]], this.faceColorA[face]);
         } else if (type === 2 && this.faceInfo && this.faceColor && this.faceColorA && this.faceColorB && this.faceColorC && Model.vertexScreenX && Model.vertexScreenY && Model.vertexViewSpaceX && Model.vertexViewSpaceY && Model.vertexViewSpaceZ) {
             const texturedFace: number = this.faceInfo[face] >> 2;
             const tA: number = this.texturedVertexA[texturedFace];
@@ -2319,7 +2319,7 @@ export default class Model extends DoublyLinkable {
             } else if (type === 0) {
                 Pix3D.fillGouraudTriangle(x0, x1, x2, y0, y1, y2, Model.clippedColor[0], Model.clippedColor[1], Model.clippedColor[2]);
             } else if (type === 1 && this.faceColorA) {
-                Pix3D.fillTriangle(x0, x1, x2, y0, y1, y2, Pix3D.hslPal[this.faceColorA[face]]);
+                Pix3D.fillTriangle(x0, x1, x2, y0, y1, y2, Pix3D.hslPal[this.faceColorA[face]], this.faceColorA[face]);
             } else if (type === 2 && this.faceInfo && this.faceColor && Model.vertexViewSpaceX && Model.vertexViewSpaceY && Model.vertexViewSpaceZ) {
                 const texturedFace: number = this.faceInfo[face] >> 2;
                 const tA: number = this.texturedVertexA[texturedFace];
@@ -2396,8 +2396,8 @@ export default class Model extends DoublyLinkable {
             } else if (type === 1) {
                 if (this.faceColorA) {
                     const colorA: number = Pix3D.hslPal[this.faceColorA[face]];
-                    Pix3D.fillTriangle(x0, x1, x2, y0, y1, y2, colorA);
-                    Pix3D.fillTriangle(x0, x2, Model.clippedX[3], y0, y2, Model.clippedY[3], colorA);
+                    Pix3D.fillTriangle(x0, x1, x2, y0, y1, y2, colorA, this.faceColorA[face]);
+                    Pix3D.fillTriangle(x0, x2, Model.clippedX[3], y0, y2, Model.clippedY[3], colorA, this.faceColorA[face]);
                 }
             } else if (type === 2 && this.faceInfo && this.faceColor && Model.vertexViewSpaceX && Model.vertexViewSpaceY && Model.vertexViewSpaceZ) {
                 const texturedFace: number = this.faceInfo[face] >> 2;

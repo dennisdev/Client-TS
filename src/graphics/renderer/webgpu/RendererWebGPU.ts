@@ -818,7 +818,7 @@ export class RendererWebGPU extends Renderer {
         this.device.queue.submit([commandBuffer]);
     }
 
-    override fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number): boolean {
+    override fillTriangle(x0: number, x1: number, x2: number, y0: number, y1: number, y2: number, color: number, hsl: number): boolean {
         if (!this.isRenderingScene) {
             return false;
         }
