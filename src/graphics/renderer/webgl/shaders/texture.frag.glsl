@@ -213,7 +213,7 @@ int calc_texel_colour(
 
     int rgb = get_texel((cur_v & 0x3F80) + (cur_u >> 7), texture_id) >> shade_shift;
 
-    // if (rgb == 0) {
+    // if (rgb == 0 && v_textureOpaque == 0.0) {
     //     return 0xff0000;
     // }
 
@@ -258,7 +258,6 @@ void main() {
             || x_a > safe_width
             || x_b > safe_width
             || x_c > safe_width;
-    
     
     int vertical_x = origin_x - tx_b;
     int vertical_y = origin_y - ty_b;

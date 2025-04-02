@@ -41,6 +41,17 @@ void main() {
     v_data3 = fetchData(triangleIndex + 3);
     v_data4 = fetchData(triangleIndex + 4);
 
+    // ivec3 xs = ivec3(
+    //     v_data0.x, 
+    //     v_data0.y, 
+    //     v_data0.z
+    // );
+    // ivec3 ys = ivec3(
+    //     v_data0.w, 
+    //     v_data1.x, 
+    //     v_data1.y
+    // );
+
     v_textureOpaque = u_textureTranslucent[v_data4.z] ? 0.0 : 1.0;
 
     float depth = 1.0 - float(v_data4.w) / u_triangleCount;
@@ -48,8 +59,8 @@ void main() {
     int vertexIndex = gl_VertexID % 3;
 
     // vec2 screenPos = vec2(xs[vertexIndex], ys[vertexIndex]);
-    // screenPos += 0.5;
-    // gl_Position = vec4(screenPos * 2.0 / dimensions - 1.0, 0.0, 1.0);
+    // // screenPos += 0.5;
+    // gl_Position = vec4(screenPos * 2.0 / dimensions - 1.0, depth, 1.0);
     
     // // flip y
     // gl_Position.y *= -1.0;
