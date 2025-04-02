@@ -225,9 +225,9 @@ void main() {
     int y_a = v_data0.w;
     int y_b = v_data1.x;
     int y_c = v_data1.y;
-    int colour_a = v_data1.z;
-    int colour_b = v_data1.w;
-    int colour_c = v_data2.x;
+    int shade_a = v_data1.z;
+    int shade_b = v_data1.w;
+    int shade_c = v_data2.x;
     int origin_x = v_data2.y;
     int origin_y = v_data2.z;
     int origin_z = v_data2.w;
@@ -255,6 +255,7 @@ void main() {
             || x_b > safe_width
             || x_c > safe_width;
     
+    
     int vertical_x = origin_x - tx_b;
     int vertical_y = origin_y - ty_b;
     int vertical_z = origin_z - tz_b;
@@ -275,28 +276,28 @@ void main() {
     int w_stride = ((vertical_z * horizontal_y) - (vertical_y * horizontal_z)) << 8;
     int w_step_vertical = ((vertical_x * horizontal_z) - (vertical_z * horizontal_x)) << 5;
 
-	int x_step_ab = 0;
-	int colour_step_ab = 0;
-	if (y_b != y_a) {
-		x_step_ab = ((x_b - x_a) << 16) / (y_b - y_a);
-        colour_step_ab = ((colour_b - colour_a) << 15) / (y_b - y_a);
-	}
+    int x_step_ab = 0;
+    int shade_step_ab = 0;
+    if (y_b != y_a) {
+        x_step_ab = ((x_b - x_a) << 16) / (y_b - y_a);
+        shade_step_ab = ((shade_b - shade_a) << 16) / (y_b - y_a);
+    }
 
-	int x_step_bc = 0;
-	int colour_step_bc = 0;
-	if (y_c != y_b) {
+    int x_step_bc = 0;
+    int shade_step_bc = 0;
+    if (y_c != y_b) {
         x_step_bc = ((x_c - x_b) << 16) / (y_c - y_b);
-        colour_step_bc = ((colour_c - colour_b) << 15) / (y_c - y_b);
-	}
+        shade_step_bc = ((shade_c - shade_b) << 16) / (y_c - y_b);
+    }
 
-	int x_step_ac = 0;
-	int colour_step_ac = 0;
-	if (y_c != y_a) {
+    int x_step_ac = 0;
+    int shade_step_ac = 0;
+    if (y_c != y_a) {
         x_step_ac = ((x_a - x_c) << 16) / (y_a - y_c);
-        colour_step_ac = ((colour_a - colour_c) << 15) / (y_a - y_c);
-	}
+        shade_step_ac = ((shade_a - shade_c) << 16) / (y_a - y_c);
+    }
 
-	if (y_a <= y_b && y_a <= y_c) {
+    if (y_a <= y_b && y_a <= y_c) {
         if (y_a < boundBottom) {
             if (y_b > boundBottom) {
                 y_b = boundBottom;
@@ -307,21 +308,23 @@ void main() {
             }
 
             if (y_b < y_c) {
-                x_c = x_a <<= 16;
-                colour_c = colour_a <<= 15;
+                x_a <<= 16;
+                x_c = x_a;
+                shade_a <<= 16;
+                shade_c = shade_a;
                 if (y_a < 0) {
                     x_c -= x_step_ac * y_a;
                     x_a -= x_step_ab * y_a;
-                    colour_c -= colour_step_ac * y_a;
-                    colour_a -= colour_step_ab * y_a;
+                    shade_c -= shade_step_ac * y_a;
+                    shade_a -= shade_step_ab * y_a;
                     y_a = 0;
                 }
 
                 x_b <<= 16;
-                colour_b <<= 15;
+                shade_b <<= 16;
                 if (y_b < 0) {
                     x_b -= x_step_bc * y_b;
-                    colour_b -= colour_step_bc * y_b;
+                    shade_b -= shade_step_bc * y_b;
                     y_b = 0;
                 }
 
@@ -333,25 +336,40 @@ void main() {
                 if (y_a != y_b && x_step_ac < x_step_ab || y_a == y_b && x_step_ac > x_step_bc) {
                     y_c -= y_b;
                     y_b -= y_a;
-                    // yA = lineOffset[yA];
+                    // y_a = lineOffset[y_a];
+                    // y_a *= self.width;
 
                     if (scanline_y < y_b) {
                         int delta_y = scanline_y;
                         x_c += x_step_ac * delta_y;
                         x_a += x_step_ab * delta_y;
-                        int scanline_x_a = x_a >> 16;
-                        int scanline_x_b = x_c >> 16;
+                        int scanline_x_a = x_c >> 16;
+                        int scanline_x_b = x_a >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_ac * delta_y;
-                        colour_a += colour_step_ab * delta_y;
+                        shade_c += shade_step_ac * delta_y;
+                        shade_a += shade_step_ab * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_a >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_c >> 8, 
+                            shade_a >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -359,8 +377,8 @@ void main() {
                     } else if (scanline_y - y_b < y_c) {
                         x_c += x_step_ac * y_b;
                         x_a += x_step_ab * y_b;
-                        colour_c += colour_step_ac * y_b;
-                        colour_a += colour_step_ab * y_b;
+                        shade_c += shade_step_ac * y_b;
+                        shade_a += shade_step_ab * y_b;
 
                         int delta_y = scanline_y - y_b;
                         x_c += x_step_ac * delta_y;
@@ -370,23 +388,93 @@ void main() {
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_ac * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_c += shade_step_ac * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_b >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_c >> 8, 
+                            shade_b >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
+
+                    // for _ in 0..y_b {
+                    //     // while (--y_b >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_c >> 16,
+                    //         x_a >> 16,
+                    //         y_a,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_c >> 8,
+                    //         shade_a >> 8,
+                    //     );
+                    //     x_c += x_step_ac;
+                    //     x_a += x_step_ab;
+                    //     shade_c += shade_step_ac;
+                    //     shade_a += shade_step_ab;
+                    //     y_a += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                    // for _ in 0..y_c {
+                    //     // while (--y_c >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_c >> 16,
+                    //         x_b >> 16,
+                    //         y_a,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_c >> 8,
+                    //         shade_b >> 8,
+                    //     );
+                    //     x_c += x_step_ac;
+                    //     x_b += x_step_bc;
+                    //     shade_c += shade_step_ac;
+                    //     shade_b += shade_step_bc;
+                    //     y_a += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
                 } else {
                     y_c -= y_b;
                     y_b -= y_a;
-                    // yA = lineOffset[yA];
+                    // y_a = lineOffset[y_a];
+                    // y_a *= self.width;
 
                     if (scanline_y < y_b) {
                         int delta_y = scanline_y;
@@ -397,14 +485,28 @@ void main() {
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_ac * delta_y;
-                        colour_a += colour_step_ab * delta_y;
+                        shade_c += shade_step_ac * delta_y;
+                        shade_a += shade_step_ab * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_c >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_a >> 8, 
+                            shade_c >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -412,8 +514,8 @@ void main() {
                     } else if (scanline_y - y_b < y_c) {
                         x_c += x_step_ac * y_b;
                         x_a += x_step_ab * y_b;
-                        colour_c += colour_step_ac * y_b;
-                        colour_a += colour_step_ab * y_b;
+                        shade_c += shade_step_ac * y_b;
+                        shade_a += shade_step_ab * y_b;
 
                         int delta_y = scanline_y - y_b;
                         x_c += x_step_ac * delta_y;
@@ -423,36 +525,107 @@ void main() {
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_ac * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_c += shade_step_ac * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_c >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_b >> 8, 
+                            shade_c >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
+
+                //     for _ in 0..y_b {
+                //         // while (--y_b >= 0) {
+                //         self.raster_texture_scanline(
+                //             x_a >> 16,
+                //             x_c >> 16,
+                //             y_a,
+                //             texels,
+                //             0,
+                //             0,
+                //             u,
+                //             v,
+                //             w,
+                //             u_stride,
+                //             v_stride,
+                //             w_stride,
+                //             shade_a >> 8,
+                //             shade_c >> 8,
+                //         );
+                //         x_c += x_step_ac;
+                //         x_a += x_step_ab;
+                //         shade_c += shade_step_ac;
+                //         shade_a += shade_step_ab;
+                //         y_a += self.width;
+                //         u += u_step_vertical;
+                //         v += v_step_vertical;
+                //         w += w_step_vertical;
+                //     }
+                //     for _ in 0..y_c {
+                //         // while (--y_c >= 0) {
+                //         self.raster_texture_scanline(
+                //             x_b >> 16,
+                //             x_c >> 16,
+                //             y_a,
+                //             texels,
+                //             0,
+                //             0,
+                //             u,
+                //             v,
+                //             w,
+                //             u_stride,
+                //             v_stride,
+                //             w_stride,
+                //             shade_b >> 8,
+                //             shade_c >> 8,
+                //         );
+                //         x_c += x_step_ac;
+                //         x_b += x_step_bc;
+                //         shade_c += shade_step_ac;
+                //         shade_b += shade_step_bc;
+                //         y_a += self.width;
+                //         u += u_step_vertical;
+                //         v += v_step_vertical;
+                //         w += w_step_vertical;
+                //     }
                 }
             } else {
-                x_b = x_a <<= 16;
-                colour_b = colour_a <<= 15;
+                x_a <<= 16;
+                x_b = x_a;
+                shade_a <<= 16;
+                shade_b = shade_a;
                 if (y_a < 0) {
                     x_b -= x_step_ac * y_a;
                     x_a -= x_step_ab * y_a;
-                    colour_b -= colour_step_ac * y_a;
-                    colour_a -= colour_step_ab * y_a;
+                    shade_b -= shade_step_ac * y_a;
+                    shade_a -= shade_step_ab * y_a;
                     y_a = 0;
                 }
 
                 x_c <<= 16;
-                colour_c <<= 15;
+                shade_c <<= 16;
                 if (y_c < 0) {
                     x_c -= x_step_bc * y_c;
-                    colour_c -= colour_step_bc * y_c;
+                    shade_c -= shade_step_bc * y_c;
                     y_c = 0;
                 }
 
@@ -461,29 +634,43 @@ void main() {
                 v += v_step_vertical * dy;
                 w += w_step_vertical * dy;
 
-                if (y_a != y_c && x_step_ac < x_step_ab || y_a == y_c && x_step_bc > x_step_ab) {
+                if ((y_a == y_c || x_step_ac >= x_step_ab) && (y_a != y_c || x_step_bc <= x_step_ab)) {
                     y_b -= y_c;
                     y_c -= y_a;
-                    // yA = lineOffset[yA];
+                    // y_a = lineOffset[y_a];
+                    // y_a *= self.width;
 
                     if (scanline_y < y_c) {
                         int delta_y = scanline_y;
                         x_b += x_step_ac * delta_y;
                         x_a += x_step_ab * delta_y;
-                        
-                        int scanline_x_a = x_b >> 16;
-                        int scanline_x_b = x_a >> 16;
+                        int scanline_x_a = x_a >> 16;
+                        int scanline_x_b = x_b >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_b += colour_step_ac * delta_y;
-                        colour_a += colour_step_ab * delta_y;
+                        shade_b += shade_step_ac * delta_y;
+                        shade_a += shade_step_ab * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
-
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_a >> 7);
+                        
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_a >> 8, 
+                            shade_b >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -491,53 +678,136 @@ void main() {
                     } else if (scanline_y - y_c < y_b) {
                         x_b += x_step_ac * y_c;
                         x_a += x_step_ab * y_c;
-                        colour_b += colour_step_ac * y_c;
-                        colour_a += colour_step_ab * y_c;
+                        shade_b += shade_step_ac * y_c;
+                        shade_a += shade_step_ab * y_c;
 
                         int delta_y = scanline_y - y_c;
                         x_c += x_step_bc * delta_y;
                         x_a += x_step_ab * delta_y;
-                        int scanline_x_a = x_c >> 16;
-                        int scanline_x_b = x_a >> 16;
+                        int scanline_x_a = x_a >> 16;
+                        int scanline_x_b = x_c >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_bc * delta_y;
-                        colour_a += colour_step_ab * delta_y;
+                        shade_c += shade_step_bc * delta_y;
+                        shade_a += shade_step_ab * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_a >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_a >> 8, 
+                            shade_c >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
+
+                    // for _ in 0..y_c {
+                    //     // while (--y_c >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_a >> 16,
+                    //         x_b >> 16,
+                    //         y_a,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_a >> 8,
+                    //         shade_b >> 8,
+                    //     );
+                    //     x_b += x_step_ac;
+                    //     x_a += x_step_ab;
+                    //     shade_b += shade_step_ac;
+                    //     shade_a += shade_step_ab;
+                    //     y_a += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                    // for _ in 0..y_b {
+                    //     // while (--y_b >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_a >> 16,
+                    //         x_c >> 16,
+                    //         y_a,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_a >> 8,
+                    //         shade_c >> 8,
+                    //     );
+                    //     x_c += x_step_bc;
+                    //     x_a += x_step_ab;
+                    //     shade_c += shade_step_bc;
+                    //     shade_a += shade_step_ab;
+                    //     y_a += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
                 } else {
                     y_b -= y_c;
                     y_c -= y_a;
-                    // yA = lineOffset[yA];
-
+                    // y_a = lineOffset[y_a];
+                    // y_a *= self.width;
+                    
                     if (scanline_y < y_c) {
                         int delta_y = scanline_y;
                         x_b += x_step_ac * delta_y;
                         x_a += x_step_ab * delta_y;
-                        
-                        int scanline_x_a = x_a >> 16;
-                        int scanline_x_b = x_b >> 16;
+                        int scanline_x_a = x_b >> 16;
+                        int scanline_x_b = x_a >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_b += colour_step_ac * delta_y;
-                        colour_a += colour_step_ab * delta_y;
+                        shade_b += shade_step_ac * delta_y;
+                        shade_a += shade_step_ab * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
-
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_b >> 7);
+                        
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_b >> 8, 
+                            shade_a >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -545,90 +815,175 @@ void main() {
                     } else if (scanline_y - y_c < y_b) {
                         x_b += x_step_ac * y_c;
                         x_a += x_step_ab * y_c;
-                        colour_b += colour_step_ac * y_c;
-                        colour_a += colour_step_ab * y_c;
+                        shade_b += shade_step_ac * y_c;
+                        shade_a += shade_step_ab * y_c;
 
                         int delta_y = scanline_y - y_c;
                         x_c += x_step_bc * delta_y;
                         x_a += x_step_ab * delta_y;
-                        int scanline_x_a = x_a >> 16;
-                        int scanline_x_b = x_c >> 16;
+                        int scanline_x_a = x_c >> 16;
+                        int scanline_x_b = x_a >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_bc * delta_y;
-                        colour_a += colour_step_ab * delta_y;
+                        shade_c += shade_step_bc * delta_y;
+                        shade_a += shade_step_ab * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_c >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_c >> 8, 
+                            shade_a >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
+
+                    // for _ in 0..y_c {
+                    //     // while (--y_c >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_b >> 16,
+                    //         x_a >> 16,
+                    //         y_a,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_b >> 8,
+                    //         shade_a >> 8,
+                    //     );
+                    //     x_b += x_step_ac;
+                    //     x_a += x_step_ab;
+                    //     shade_b += shade_step_ac;
+                    //     shade_a += shade_step_ab;
+                    //     y_a += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                    // for _ in 0..y_b {
+                    //     // while (--y_b >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_c >> 16,
+                    //         x_a >> 16,
+                    //         y_a,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_c >> 8,
+                    //         shade_a >> 8,
+                    //     );
+                    //     x_c += x_step_bc;
+                    //     x_a += x_step_ab;
+                    //     shade_c += shade_step_bc;
+                    //     shade_a += shade_step_ab;
+                    //     y_a += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
                 }
             }
         }
-	} else if (y_b <= y_c) {
-		if (y_b < boundBottom) {
-			if (y_c > boundBottom) {
-				y_c = boundBottom;
-			}
+    } else if (y_b <= y_c) {
+        if (y_b < boundBottom) {
+            if (y_c > boundBottom) {
+                y_c = boundBottom;
+            }
 
-			if (y_a > boundBottom) {
-				y_a = boundBottom;
-			}
+            if (y_a > boundBottom) {
+                y_a = boundBottom;
+            }
 
-			if (y_c < y_a) {
-				x_a = x_b <<= 16;
-				colour_a = colour_b <<= 15;
-				if (y_b < 0) {
-					x_a -= x_step_ab * y_b;
-					x_b -= x_step_bc * y_b;
-					colour_a -= colour_step_ab * y_b;
-					colour_b -= colour_step_bc * y_b;
-					y_b = 0;
-				}
+            if (y_c < y_a) {
+                x_b <<= 16;
+                x_a = x_b;
+                shade_b <<= 16;
+                shade_a = shade_b;
+                if (y_b < 0) {
+                    x_a -= x_step_ab * y_b;
+                    x_b -= x_step_bc * y_b;
+                    shade_a -= shade_step_ab * y_b;
+                    shade_b -= shade_step_bc * y_b;
+                    y_b = 0;
+                }
 
-				x_c <<= 16;
-				colour_c <<= 15;
-				if (y_c < 0) {
-					x_c -= x_step_ac * y_c;
-					colour_c -= colour_step_ac * y_c;
-					y_c = 0;
-				}
-                
+                x_c <<= 16;
+                shade_c <<= 16;
+                if (y_c < 0) {
+                    x_c -= x_step_ac * y_c;
+                    shade_c -= shade_step_ac * y_c;
+                    y_c = 0;
+                }
+
                 int dy = y_b - centerY;
                 u += u_step_vertical * dy;
                 v += v_step_vertical * dy;
                 w += w_step_vertical * dy;
 
-				if (y_b != y_c && x_step_ab < x_step_bc || y_b == y_c && x_step_ab > x_step_ac) {
-					y_a -= y_c;
-					y_c -= y_b;
-					// yB = lineOffset[yB];
-                    
+                if (y_b != y_c && x_step_ab < x_step_bc || y_b == y_c && x_step_ab > x_step_ac) {
+                    y_a -= y_c;
+                    y_c -= y_b;
+                    // y_b = lineOffset[y_b];
+                    // y_b *= self.width;
+
                     if (scanline_y < y_c) {
                         int delta_y = scanline_y;
                         x_a += x_step_ab * delta_y;
                         x_b += x_step_bc * delta_y;
-                        
                         int scanline_x_a = x_a >> 16;
                         int scanline_x_b = x_b >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_a += colour_step_ab * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_a += shade_step_ab * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
-
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_b >> 7);
+                        
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_a >> 8, 
+                            shade_b >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -636,54 +991,138 @@ void main() {
                     } else if (scanline_y - y_c < y_a) {
                         x_a += x_step_ab * y_c;
                         x_b += x_step_bc * y_c;
-                        colour_a += colour_step_ab * y_c;
-                        colour_b += colour_step_bc * y_c;
+                        shade_a += shade_step_ab * y_c;
+                        shade_b += shade_step_bc * y_c;
 
                         int delta_y = scanline_y - y_c;
                         x_a += x_step_ab * delta_y;
                         x_c += x_step_ac * delta_y;
-
                         int scanline_x_a = x_a >> 16;
                         int scanline_x_b = x_c >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_a += colour_step_ab * delta_y;
-                        colour_c += colour_step_ac * delta_y;
+                        shade_a += shade_step_ab * delta_y;
+                        shade_c += shade_step_ac * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_c >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_a >> 8, 
+                            shade_c >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
-				} else {
-					y_a -= y_c;
-					y_c -= y_b;
-					// yB = lineOffset[yB];
+
+                    // ggg
+
+                    // for _ in 0..y_c {
+                    //     // while (--y_c >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_a >> 16,
+                    //         x_b >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_a >> 8,
+                    //         shade_b >> 8,
+                    //     );
+                    //     x_a += x_step_ab;
+                    //     x_b += x_step_bc;
+                    //     shade_a += shade_step_ab;
+                    //     shade_b += shade_step_bc;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                    // for _ in 0..y_a {
+                    //     // while (--y_a >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_a >> 16,
+                    //         x_c >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_a >> 8,
+                    //         shade_c >> 8,
+                    //     );
+                    //     x_a += x_step_ab;
+                    //     x_c += x_step_ac;
+                    //     shade_a += shade_step_ab;
+                    //     shade_c += shade_step_ac;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                } else {
+                    y_a -= y_c;
+                    y_c -= y_b;
+                    // y_b = lineOffset[y_b];
+                    // y_b *= self.width;
 
                     if (scanline_y < y_c) {
                         int delta_y = scanline_y;
                         x_a += x_step_ab * delta_y;
                         x_b += x_step_bc * delta_y;
-                        
                         int scanline_x_a = x_b >> 16;
                         int scanline_x_b = x_a >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_a += colour_step_ab * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_a += shade_step_ab * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
-
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_a >> 7);
+                        
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_b >> 8, 
+                            shade_a >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -691,79 +1130,165 @@ void main() {
                     } else if (scanline_y - y_c < y_a) {
                         x_a += x_step_ab * y_c;
                         x_b += x_step_bc * y_c;
-                        colour_a += colour_step_ab * y_c;
-                        colour_b += colour_step_bc * y_c;
+                        shade_a += shade_step_ab * y_c;
+                        shade_b += shade_step_bc * y_c;
 
                         int delta_y = scanline_y - y_c;
                         x_a += x_step_ab * delta_y;
                         x_c += x_step_ac * delta_y;
-
                         int scanline_x_a = x_c >> 16;
                         int scanline_x_b = x_a >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_a += colour_step_ab * delta_y;
-                        colour_c += colour_step_ac * delta_y;
+                        shade_a += shade_step_ab * delta_y;
+                        shade_c += shade_step_ac * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_a >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_c >> 8, 
+                            shade_a >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
-				}
-			} else {
-				x_c = x_b <<= 16;
-				colour_c = colour_b <<= 15;
-				if (y_b < 0) {
-					x_c -= x_step_ab * y_b;
-					x_b -= x_step_bc * y_b;
-					colour_c -= colour_step_ab * y_b;
-					colour_b -= colour_step_bc * y_b;
-					y_b = 0;
-				}
 
-				x_a <<= 16;
-				colour_a <<= 15;
-				if (y_a < 0) {
-					x_a -= x_step_ac * y_a;
-					colour_a -= colour_step_ac * y_a;
-					y_a = 0;
-				}
-                
+                    // ggg
+
+                    // for _ in 0..y_c {
+                    //     // while (--y_c >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_b >> 16,
+                    //         x_a >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_b >> 8,
+                    //         shade_a >> 8,
+                    //     );
+                    //     x_a += x_step_ab;
+                    //     x_b += x_step_bc;
+                    //     shade_a += shade_step_ab;
+                    //     shade_b += shade_step_bc;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                    // for _ in 0..y_a {
+                    //     // while (--y_a >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_c >> 16,
+                    //         x_a >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_c >> 8,
+                    //         shade_a >> 8,
+                    //     );
+                    //     x_a += x_step_ab;
+                    //     x_c += x_step_ac;
+                    //     shade_a += shade_step_ab;
+                    //     shade_c += shade_step_ac;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                }
+            } else {
+                x_b <<= 16;
+                x_c = x_b;
+                shade_b <<= 16;
+                shade_c = shade_b;
+                if (y_b < 0) {
+                    x_c -= x_step_ab * y_b;
+                    x_b -= x_step_bc * y_b;
+                    shade_c -= shade_step_ab * y_b;
+                    shade_b -= shade_step_bc * y_b;
+                    y_b = 0;
+                }
+
+                x_a <<= 16;
+                shade_a <<= 16;
+                if (y_a < 0) {
+                    x_a -= x_step_ac * y_a;
+                    shade_a -= shade_step_ac * y_a;
+                    y_a = 0;
+                }
+
                 int dy = y_b - centerY;
                 u += u_step_vertical * dy;
                 v += v_step_vertical * dy;
                 w += w_step_vertical * dy;
 
-				if (x_step_ab < x_step_bc) {
-					y_c -= y_a;
-					y_a -= y_b;
-					// yB = lineOffset[yB];
+                if (x_step_ab < x_step_bc) {
+                    y_c -= y_a;
+                    y_a -= y_b;
+                    // y_b = lineOffset[y_b];
+                    // y_b *= self.width;
 
                     if (scanline_y < y_a) {
                         int delta_y = scanline_y;
                         x_c += x_step_ab * delta_y;
                         x_b += x_step_bc * delta_y;
-                        
                         int scanline_x_a = x_c >> 16;
                         int scanline_x_b = x_b >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_ab * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_c += shade_step_ab * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
-
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_b >> 7);
+                        
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_c >> 8, 
+                            shade_b >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -771,54 +1296,138 @@ void main() {
                     } else if (scanline_y - y_a < y_c) {
                         x_c += x_step_ab * y_a;
                         x_b += x_step_bc * y_a;
-                        colour_c += colour_step_ab * y_a;
-                        colour_b += colour_step_bc * y_a;
+                        shade_c += shade_step_ab * y_a;
+                        shade_b += shade_step_bc * y_a;
 
                         int delta_y = scanline_y - y_a;
                         x_a += x_step_ac * delta_y;
                         x_b += x_step_bc * delta_y;
-
                         int scanline_x_a = x_a >> 16;
                         int scanline_x_b = x_b >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_a += colour_step_ac * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_a += shade_step_ac * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_b >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_a >> 8, 
+                            shade_b >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
-				} else {
-					y_c -= y_a;
-					y_a -= y_b;
-					// yB = lineOffset[yB];
-                    
+
+                    // ggg
+
+                    // for _ in 0..y_a {
+                    //     // while (--y_a >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_c >> 16,
+                    //         x_b >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_c >> 8,
+                    //         shade_b >> 8,
+                    //     );
+                    //     x_c += x_step_ab;
+                    //     x_b += x_step_bc;
+                    //     shade_c += shade_step_ab;
+                    //     shade_b += shade_step_bc;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                    // for _ in 0..y_c {
+                    //     // while (--y_c >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_a >> 16,
+                    //         x_b >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_a >> 8,
+                    //         shade_b >> 8,
+                    //     );
+                    //     x_a += x_step_ac;
+                    //     x_b += x_step_bc;
+                    //     shade_a += shade_step_ac;
+                    //     shade_b += shade_step_bc;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                } else {
+                    y_c -= y_a;
+                    y_a -= y_b;
+                    // y_b = lineOffset[y_b];
+                    // y_b *= self.width;
+
                     if (scanline_y < y_a) {
                         int delta_y = scanline_y;
                         x_c += x_step_ab * delta_y;
                         x_b += x_step_bc * delta_y;
-                        
                         int scanline_x_a = x_b >> 16;
                         int scanline_x_b = x_c >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_c += colour_step_ab * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_c += shade_step_ab * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * delta_y;
                         v += v_step_vertical * delta_y;
                         w += w_step_vertical * delta_y;
-
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_c >> 7);
+                        
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_b >> 8, 
+                            shade_c >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
@@ -826,90 +1435,176 @@ void main() {
                     } else if (scanline_y - y_a < y_c) {
                         x_c += x_step_ab * y_a;
                         x_b += x_step_bc * y_a;
-                        colour_c += colour_step_ab * y_a;
-                        colour_b += colour_step_bc * y_a;
+                        shade_c += shade_step_ab * y_a;
+                        shade_b += shade_step_bc * y_a;
 
                         int delta_y = scanline_y - y_a;
                         x_a += x_step_ac * delta_y;
                         x_b += x_step_bc * delta_y;
-
                         int scanline_x_a = x_b >> 16;
                         int scanline_x_b = x_a >> 16;
                         if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                             discard;
                         }
-                        colour_a += colour_step_ac * delta_y;
-                        colour_b += colour_step_bc * delta_y;
+                        shade_a += shade_step_ac * delta_y;
+                        shade_b += shade_step_bc * delta_y;
 
                         u += u_step_vertical * scanline_y;
                         v += v_step_vertical * scanline_y;
                         w += w_step_vertical * scanline_y;
                         
-                        int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_a >> 7);
+                        int rgb = calc_texel_colour(
+                            scanline_x_a, 
+                            scanline_x_b, 
+                            texture_id, 
+                            0, 
+                            0, 
+                            u, 
+                            v, 
+                            w, 
+                            u_stride, 
+                            v_stride, 
+                            w_stride, 
+                            shade_b >> 8, 
+                            shade_a >> 8
+                        );
                         if (rgb != 0) {
                             fragColor.rgb = unpack_colour888(rgb);
                             return;
                         }
                     }
-				}
-			}
-		}
+
+                    // ggg
+
+                    // for _ in 0..y_a {
+                    //     // while (--y_a >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_b >> 16,
+                    //         x_c >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_b >> 8,
+                    //         shade_c >> 8,
+                    //     );
+                    //     x_c += x_step_ab;
+                    //     x_b += x_step_bc;
+                    //     shade_c += shade_step_ab;
+                    //     shade_b += shade_step_bc;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                    // for _ in 0..y_c {
+                    //     // while (--y_c >= 0) {
+                    //     self.raster_texture_scanline(
+                    //         x_b >> 16,
+                    //         x_a >> 16,
+                    //         y_b,
+                    //         texels,
+                    //         0,
+                    //         0,
+                    //         u,
+                    //         v,
+                    //         w,
+                    //         u_stride,
+                    //         v_stride,
+                    //         w_stride,
+                    //         shade_b >> 8,
+                    //         shade_a >> 8,
+                    //     );
+                    //     x_a += x_step_ac;
+                    //     x_b += x_step_bc;
+                    //     shade_a += shade_step_ac;
+                    //     shade_b += shade_step_bc;
+                    //     y_b += self.width;
+                    //     u += u_step_vertical;
+                    //     v += v_step_vertical;
+                    //     w += w_step_vertical;
+                    // }
+                }
+            }
+        }
     } else if (y_c < boundBottom) {
-     	if (y_a > boundBottom) {
-			y_a = boundBottom;
-		}
+        if (y_a > boundBottom) {
+            y_a = boundBottom;
+        }
 
-		if (y_b > boundBottom) {
-			y_b = boundBottom;
-		}
+        if (y_b > boundBottom) {
+            y_b = boundBottom;
+        }
 
-		if (y_a < y_b) {
-			x_b = x_c <<= 16;
-			colour_b = colour_c <<= 15;
-			if (y_c < 0) {
-				x_b -= x_step_bc * y_c;
-				x_c -= x_step_ac * y_c;
-				colour_b -= colour_step_bc * y_c;
-				colour_c -= colour_step_ac * y_c;
-				y_c = 0;
-			}
+        if (y_a < y_b) {
+            x_c <<= 16;
+            x_b = x_c;
+            shade_c <<= 16;
+            shade_b = shade_c;
+            if (y_c < 0) {
+                x_b -= x_step_bc * y_c;
+                x_c -= x_step_ac * y_c;
+                shade_b -= shade_step_bc * y_c;
+                shade_c -= shade_step_ac * y_c;
+                y_c = 0;
+            }
 
-			x_a <<= 16;
-			colour_a <<= 15;
-			if (y_a < 0) {
-				x_a -= x_step_ab * y_a;
-				colour_a -= colour_step_ab * y_a;
-				y_a = 0;
-			}
-                
+            x_a <<= 16;
+            shade_a <<= 16;
+            if (y_a < 0) {
+                x_a -= x_step_ab * y_a;
+                shade_a -= shade_step_ab * y_a;
+                y_a = 0;
+            }
+
             int dy = y_c - centerY;
             u += u_step_vertical * dy;
             v += v_step_vertical * dy;
             w += w_step_vertical * dy;
 
             if (x_step_bc < x_step_ac) {
-				y_b -= y_a;
-				y_a -= y_c;
-				// yC = lineOffset[yC];
+                y_b -= y_a;
+                y_a -= y_c;
+                // y_c = lineOffset[y_c];
+                // y_c *= self.width;
 
                 if (scanline_y < y_a) {
                     int delta_y = scanline_y;
                     x_b += x_step_bc * delta_y;
                     x_c += x_step_ac * delta_y;
-                    
                     int scanline_x_a = x_b >> 16;
                     int scanline_x_b = x_c >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_b += colour_step_bc * delta_y;
-                    colour_c += colour_step_ac * delta_y;
+                    shade_b += shade_step_bc * delta_y;
+                    shade_c += shade_step_ac * delta_y;
 
                     u += u_step_vertical * delta_y;
                     v += v_step_vertical * delta_y;
                     w += w_step_vertical * delta_y;
-
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_c >> 7);
+                    
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_b >> 8, 
+                        shade_c >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
@@ -917,54 +1612,138 @@ void main() {
                 } else if (scanline_y - y_a < y_b) {
                     x_b += x_step_bc * y_a;
                     x_c += x_step_ac * y_a;
-                    colour_b += colour_step_bc * y_a;
-                    colour_c += colour_step_ac * y_a;
+                    shade_b += shade_step_bc * y_a;
+                    shade_c += shade_step_ac * y_a;
 
                     int delta_y = scanline_y - y_a;
                     x_b += x_step_bc * delta_y;
                     x_a += x_step_ab * delta_y;
-
                     int scanline_x_a = x_b >> 16;
                     int scanline_x_b = x_a >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_b += colour_step_bc * delta_y;
-                    colour_a += colour_step_ab * delta_y;
+                    shade_b += shade_step_bc * delta_y;
+                    shade_a += shade_step_ab * delta_y;
 
                     u += u_step_vertical * scanline_y;
                     v += v_step_vertical * scanline_y;
                     w += w_step_vertical * scanline_y;
                     
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_a >> 7);
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_b >> 8, 
+                        shade_a >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
                 }
-			} else {
-				y_b -= y_a;
-				y_a -= y_c;
-				// yC = lineOffset[yC];
+
+                // ggg
+
+                // for _ in 0..y_a {
+                //     // while (--y_a >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_b >> 16,
+                //         x_c >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_b >> 8,
+                //         shade_c >> 8,
+                //     );
+                //     x_b += x_step_bc;
+                //     x_c += x_step_ac;
+                //     shade_b += shade_step_bc;
+                //     shade_c += shade_step_ac;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
+                // for _ in 0..y_b {
+                //     // while (--y_b >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_b >> 16,
+                //         x_a >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_b >> 8,
+                //         shade_a >> 8,
+                //     );
+                //     x_b += x_step_bc;
+                //     x_a += x_step_ab;
+                //     shade_b += shade_step_bc;
+                //     shade_a += shade_step_ab;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
+            } else {
+                y_b -= y_a;
+                y_a -= y_c;
+                // y_c = lineOffset[y_c];
+                // y_c *= self.width;
 
                 if (scanline_y < y_a) {
                     int delta_y = scanline_y;
                     x_b += x_step_bc * delta_y;
                     x_c += x_step_ac * delta_y;
-                    
                     int scanline_x_a = x_c >> 16;
                     int scanline_x_b = x_b >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_b += colour_step_bc * delta_y;
-                    colour_c += colour_step_ac * delta_y;
+                    shade_b += shade_step_bc * delta_y;
+                    shade_c += shade_step_ac * delta_y;
 
                     u += u_step_vertical * delta_y;
                     v += v_step_vertical * delta_y;
                     w += w_step_vertical * delta_y;
-
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_b >> 7);
+                    
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_c >> 8, 
+                        shade_b >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
@@ -972,78 +1751,165 @@ void main() {
                 } else if (scanline_y - y_a < y_b) {
                     x_b += x_step_bc * y_a;
                     x_c += x_step_ac * y_a;
-                    colour_b += colour_step_bc * y_a;
-                    colour_c += colour_step_ac * y_a;
+                    shade_b += shade_step_bc * y_a;
+                    shade_c += shade_step_ac * y_a;
 
                     int delta_y = scanline_y - y_a;
                     x_b += x_step_bc * delta_y;
                     x_a += x_step_ab * delta_y;
-
                     int scanline_x_a = x_a >> 16;
                     int scanline_x_b = x_b >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_b += colour_step_bc * delta_y;
-                    colour_a += colour_step_ab * delta_y;
+                    shade_b += shade_step_bc * delta_y;
+                    shade_a += shade_step_ab * delta_y;
 
                     u += u_step_vertical * scanline_y;
                     v += v_step_vertical * scanline_y;
                     w += w_step_vertical * scanline_y;
                     
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_b >> 7);
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_a >> 8, 
+                        shade_b >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
                 }
-			}
-        } else {
-			x_a = x_c <<= 16;
-			colour_a = colour_c <<= 15;
-			if (y_c < 0) {
-				x_a -= x_step_bc * y_c;
-				x_c -= x_step_ac * y_c;
-				colour_a -= colour_step_bc * y_c;
-				colour_c -= colour_step_ac * y_c;
-				y_c = 0;
-			}
 
-			x_b <<= 16;
-			colour_b <<= 15;
-			if (y_b < 0) {
-				x_b -= x_step_ab * y_b;
-				colour_b -= colour_step_ab * y_b;
-				y_b = 0;
-			}
-                
+                // ggg
+
+                // for _ in 0..y_a {
+                //     // while (--y_a >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_c >> 16,
+                //         x_b >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_c >> 8,
+                //         shade_b >> 8,
+                //     );
+                //     x_b += x_step_bc;
+                //     x_c += x_step_ac;
+                //     shade_b += shade_step_bc;
+                //     shade_c += shade_step_ac;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
+                // for _ in 0..y_b {
+                //     // while (--y_b >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_a >> 16,
+                //         x_b >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_a >> 8,
+                //         shade_b >> 8,
+                //     );
+                //     x_b += x_step_bc;
+                //     x_a += x_step_ab;
+                //     shade_b += shade_step_bc;
+                //     shade_a += shade_step_ab;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
+            }
+        } else {
+            x_c <<= 16;
+            x_a = x_c;
+            shade_c <<= 16;
+            shade_a = shade_c;
+            if (y_c < 0) {
+                x_a -= x_step_bc * y_c;
+                x_c -= x_step_ac * y_c;
+                shade_a -= shade_step_bc * y_c;
+                shade_c -= shade_step_ac * y_c;
+                y_c = 0;
+            }
+
+            x_b <<= 16;
+            shade_b <<= 16;
+            if (y_b < 0) {
+                x_b -= x_step_ab * y_b;
+                shade_b -= shade_step_ab * y_b;
+                y_b = 0;
+            }
+
             int dy = y_c - centerY;
             u += u_step_vertical * dy;
             v += v_step_vertical * dy;
             w += w_step_vertical * dy;
 
-			if (x_step_bc < x_step_ac) {
+            if (x_step_bc < x_step_ac) {
                 y_a -= y_b;
                 y_b -= y_c;
-                
+                // y_c = lineOffset[y_c];
+                // y_c *= self.width;
+
                 if (scanline_y < y_b) {
                     int delta_y = scanline_y;
                     x_a += x_step_bc * delta_y;
                     x_c += x_step_ac * delta_y;
-                    
                     int scanline_x_a = x_a >> 16;
                     int scanline_x_b = x_c >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_a += colour_step_bc * delta_y;
-                    colour_c += colour_step_ac * delta_y;
+                    shade_a += shade_step_bc * delta_y;
+                    shade_c += shade_step_ac * delta_y;
 
                     u += u_step_vertical * delta_y;
                     v += v_step_vertical * delta_y;
                     w += w_step_vertical * delta_y;
-
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_a >> 7, colour_c >> 7);
+                    
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_a >> 8, 
+                        shade_c >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
@@ -1051,53 +1917,138 @@ void main() {
                 } else if (scanline_y - y_b < y_a) {
                     x_a += x_step_bc * y_b;
                     x_c += x_step_ac * y_b;
-                    colour_a += colour_step_bc * y_b;
-                    colour_c += colour_step_ac * y_b;
+                    shade_a += shade_step_bc * y_b;
+                    shade_c += shade_step_ac * y_b;
 
                     int delta_y = scanline_y - y_b;
                     x_b += x_step_ab * delta_y;
                     x_c += x_step_ac * delta_y;
-
                     int scanline_x_a = x_b >> 16;
                     int scanline_x_b = x_c >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_b += colour_step_ab * delta_y;
-                    colour_c += colour_step_ac * delta_y;
+                    shade_b += shade_step_ab * delta_y;
+                    shade_c += shade_step_ac * delta_y;
 
                     u += u_step_vertical * scanline_y;
                     v += v_step_vertical * scanline_y;
                     w += w_step_vertical * scanline_y;
                     
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_b >> 7, colour_c >> 7);
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_b >> 8, 
+                        shade_c >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
                 }
+
+                // ggg
+
+                // for _ in 0..y_b {
+                //     // while (--y_b >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_a >> 16,
+                //         x_c >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_a >> 8,
+                //         shade_c >> 8,
+                //     );
+                //     x_a += x_step_bc;
+                //     x_c += x_step_ac;
+                //     shade_a += shade_step_bc;
+                //     shade_c += shade_step_ac;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
+                // for _ in 0..y_a {
+                //     // while (--y_a >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_b >> 16,
+                //         x_c >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_b >> 8,
+                //         shade_c >> 8,
+                //     );
+                //     x_b += x_step_ab;
+                //     x_c += x_step_ac;
+                //     shade_b += shade_step_ab;
+                //     shade_c += shade_step_ac;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
             } else {
-				y_a -= y_b;
-				y_b -= y_c;
-				
+                y_a -= y_b;
+                y_b -= y_c;
+                // y_c = lineOffset[y_c];
+                // y_c *= self.width;
+
                 if (scanline_y < y_b) {
                     int delta_y = scanline_y;
                     x_a += x_step_bc * delta_y;
                     x_c += x_step_ac * delta_y;
-                    
                     int scanline_x_a = x_c >> 16;
                     int scanline_x_b = x_a >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_a += colour_step_bc * delta_y;
-                    colour_c += colour_step_ac * delta_y;
+                    shade_a += shade_step_bc * delta_y;
+                    shade_c += shade_step_ac * delta_y;
 
                     u += u_step_vertical * delta_y;
                     v += v_step_vertical * delta_y;
                     w += w_step_vertical * delta_y;
-
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_a >> 7);
+                    
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_c >> 8, 
+                        shade_a >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
@@ -1105,31 +2056,101 @@ void main() {
                 } else if (scanline_y - y_b < y_a) {
                     x_a += x_step_bc * y_b;
                     x_c += x_step_ac * y_b;
-                    colour_a += colour_step_bc * y_b;
-                    colour_c += colour_step_ac * y_b;
+                    shade_a += shade_step_bc * y_b;
+                    shade_c += shade_step_ac * y_b;
 
                     int delta_y = scanline_y - y_b;
                     x_b += x_step_ab * delta_y;
                     x_c += x_step_ac * delta_y;
-
                     int scanline_x_a = x_c >> 16;
                     int scanline_x_b = x_b >> 16;
                     if (is_outside_scanline(scanline_x_a, scanline_x_b)) {
                         discard;
                     }
-                    colour_b += colour_step_ab * delta_y;
-                    colour_c += colour_step_ac * delta_y;
+                    shade_b += shade_step_ab * delta_y;
+                    shade_c += shade_step_ac * delta_y;
 
                     u += u_step_vertical * scanline_y;
                     v += v_step_vertical * scanline_y;
                     w += w_step_vertical * scanline_y;
                     
-                    int rgb = calc_texel_colour(scanline_x_a, scanline_x_b, texture_id, 0, 0, u, v, w, u_stride, v_stride, w_stride, colour_c >> 7, colour_b >> 7);
+                    int rgb = calc_texel_colour(
+                        scanline_x_a, 
+                        scanline_x_b, 
+                        texture_id, 
+                        0, 
+                        0, 
+                        u, 
+                        v, 
+                        w, 
+                        u_stride, 
+                        v_stride, 
+                        w_stride, 
+                        shade_c >> 8, 
+                        shade_b >> 8
+                    );
                     if (rgb != 0) {
                         fragColor.rgb = unpack_colour888(rgb);
                         return;
                     }
                 }
+
+                // ggg
+
+                // for _ in 0..y_b {
+                //     // while (--y_b >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_c >> 16,
+                //         x_a >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_c >> 8,
+                //         shade_a >> 8,
+                //     );
+                //     x_a += x_step_bc;
+                //     x_c += x_step_ac;
+                //     shade_a += shade_step_bc;
+                //     shade_c += shade_step_ac;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
+                // for _ in 0..y_a {
+                //     // while (--y_a >= 0) {
+                //     self.raster_texture_scanline(
+                //         x_c >> 16,
+                //         x_b >> 16,
+                //         y_c,
+                //         texels,
+                //         0,
+                //         0,
+                //         u,
+                //         v,
+                //         w,
+                //         u_stride,
+                //         v_stride,
+                //         w_stride,
+                //         shade_c >> 8,
+                //         shade_b >> 8,
+                //     );
+                //     x_b += x_step_ab;
+                //     x_c += x_step_ac;
+                //     shade_b += shade_step_ab;
+                //     shade_c += shade_step_ac;
+                //     y_c += self.width;
+                //     u += u_step_vertical;
+                //     v += v_step_vertical;
+                //     w += w_step_vertical;
+                // }
             }
         }
     }
