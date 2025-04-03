@@ -185,7 +185,6 @@ void main() {
                     line1_base_colour_b = colour_b;
                     line1_step_colour_a = colour_step_ac;
                     line1_step_colour_b = colour_step_bc;
-
                 } else {
                     y_c -= y_b;
                     y_b -= y_a;

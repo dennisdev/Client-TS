@@ -154,7 +154,6 @@ export class RendererWebGL extends Renderer {
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.hslToRgbTexture);
         this.gl.activeTexture(this.gl.TEXTURE0);
 
-        this.setBrightness(0);
 
         this.textureArray = this.gl.createTexture()!;
         this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.textureArray);
@@ -163,9 +162,8 @@ export class RendererWebGL extends Renderer {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
-        for (let id = 0; id < MAX_TEXTURE_COUNT; id++) {
-            this.updateTexture(id);
-        }
+        // Also uploads textures
+        this.setBrightness(0);
 
         this.gl.activeTexture(this.gl.TEXTURE2);
         this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.textureArray);
