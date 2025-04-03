@@ -30,7 +30,7 @@ const int centerY = height / 2;
 
 const vec2 dimensions = vec2(width, height);
 
-const vec2 vertices[3] = vec2[3](
+const vec2 fullscreenVertices[3] = vec2[3](
     vec2(-1, -1), 
     vec2( 3, -1), 
     vec2(-1,  3)
@@ -48,38 +48,6 @@ void main() {
     v_data2 = fetchData(triangleIndex + 2);
     v_data3 = fetchData(triangleIndex + 3);
     v_data4 = fetchData(triangleIndex + 4);
-
-    // We have to create a larger triangle because the runescape rasterizer is different 
-    // there will be missing pixels around the edges of the triangle if we don't
-    // there might a better way to do this
-
-    vec2 p0 = vec2(v_data0.x, v_data0.w);
-    vec2 p1 = vec2(v_data0.y, v_data1.x);
-    vec2 p2 = vec2(v_data0.z, v_data1.y);
-
-    // Calculate the bounding box of the triangle
-    float minX = min(p0.x, min(p1.x, p2.x));
-    float maxX = max(p0.x, max(p1.x, p2.x));
-    float minY = min(p0.y, min(p1.y, p2.y));
-    float maxY = max(p0.y, max(p1.y, p2.y));
-
-    // Calculate triangle that contains the bounding box
-    vec2 vertices[3] = vec2[3](
-        vec2(minX, minY),
-        vec2(minX, maxY + maxY - minY),
-        vec2(maxX + maxX - minX, minY)
-    );
-
-    float depth = 1.0 - float(v_data4.w) / u_triangleCount;
-
-    int vertexIndex = gl_VertexID % 3;
-
-    gl_Position = vec4(vertices[vertexIndex] * 2.0 / dimensions - 1.0, depth, 1.0);
-    
-    // flip y
-    gl_Position.y *= -1.0;
-
-    // gl_Position = vec4(vertices[vertexIndex], depth, 1.0);
 
     int x_a = v_data0.x;
     int x_b = v_data0.y;
@@ -101,10 +69,37 @@ void main() {
     int tz_c = v_data4.y;
     int texture_id = v_data4.z;
 
+    // We have to create a larger triangle because the runescape rasterizer is different 
+    // there will be missing pixels around the edges of the triangle if we don't
+    // there might a better way to do this
+
+    // Calculate the bounding box of the triangle
+    int min_x = min(x_a, min(x_b, x_c));
+    int max_x = max(x_a, max(x_b, x_c));
+    int min_y = min(y_a, min(y_b, y_c));
+    int max_y = max(y_a, max(y_b, y_c));
+
+    // Calculate triangle that contains the bounding box
+    vec2 vertices[3] = vec2[3](
+        vec2(min_x, min_y),
+        vec2(min_x, max_y + max_y - min_y),
+        vec2(max_x + max_x - min_x, min_y)
+    );
+
+    float depth = 1.0 - float(v_data4.w) / u_triangleCount;
+
+    int vertexIndex = gl_VertexID % 3;
+
+    gl_Position = vec4(vertices[vertexIndex] * 2.0 / dimensions - 1.0, depth, 1.0);
+    
+    // flip y
+    gl_Position.y *= -1.0;
+
+    // gl_Position = vec4(fullscreenVertices[vertexIndex], depth, 1.0);
+
     bool opaque = !u_textureTranslucent[texture_id];
 
-    int min_scanline_y = max(min(y_a, min(y_b, y_c)), 0);
-    int max_scanline_y = max(y_a, max(y_b, y_c));
+    int min_scanline_y = max(min_y, 0);
 
     bool clip_x = x_a < 0
             || x_b < 0
@@ -648,7 +643,7 @@ void main() {
         }
     }
 
-    v_data0 = ivec4((min_scanline_y << 2) | (opaque ? 0x2 : 0) | (clip_x ? 1 : 0), (max_scanline_y << 8) | texture_id, line0_height, line0_base_x_a);
+    v_data0 = ivec4((min_scanline_y << 2) | (opaque ? 0x2 : 0) | (clip_x ? 1 : 0), (max_y << 8) | texture_id, line0_height, line0_base_x_a);
     v_data1 = ivec4(line0_base_x_b, line0_step_x_a, line0_step_x_b, line0_base_colour_a);
     v_data2 = ivec4(line0_base_colour_b, line0_step_colour_a, line0_step_colour_b, line1_height);
     v_data3 = ivec4(line1_base_x_a, line1_base_x_b, line1_step_x_a, line1_step_x_b);
