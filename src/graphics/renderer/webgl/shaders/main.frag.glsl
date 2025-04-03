@@ -74,13 +74,13 @@ void main() {
     clip_x = (v_data0.x & 0x1) == 1;
 
     int min_scanline_y = v_data0.x >> 1;
-    int max_scanline_y = v_data0.y;
+    int max_scanline_y = v_data0.y >> 8;
     int scanline_y = height - int(gl_FragCoord.y) - 1 - min_scanline_y;
     if (scanline_y < 0 || scanline_y >= max_scanline_y - min_scanline_y) {
         discard;
     }
 
-    fragColor.a = 1.0;
+    fragColor.a = float(v_data0.y & 0xff) / 255.0;
 
     int line0_height = v_data0.z;
     int line0_base_x_a = v_data0.w;

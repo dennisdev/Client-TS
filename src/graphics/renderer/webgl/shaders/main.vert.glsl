@@ -49,6 +49,8 @@ void main() {
     int colour_b = v_data1.w;
     int colour_c = v_data2.x;
 
+    int alpha = 255 - v_data2.z;
+
     // We have to create a larger triangle because the runescape rasterizer is different 
     // there will be missing pixels around the edges of the triangle if we don't
     // there might a better way to do this
@@ -559,7 +561,7 @@ void main() {
         }
     }
 
-    v_data0 = ivec4((min_scanline_y << 1) | (clip_x ? 1 : 0), max_y, line0_height, line0_base_x_a);
+    v_data0 = ivec4((min_scanline_y << 1) | (clip_x ? 1 : 0), (max_y << 8) | alpha, line0_height, line0_base_x_a);
     v_data1 = ivec4(line0_base_x_b, line0_step_x_a, line0_step_x_b, line0_base_colour_a);
     v_data2 = ivec4(line0_base_colour_b, line0_step_colour_a, line0_step_colour_b, line1_height);
     v_data3 = ivec4(line1_base_x_a, line1_base_x_b, line1_step_x_a, line1_step_x_b);
