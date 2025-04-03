@@ -10,6 +10,6 @@ in vec2 v_texCoord;
 out vec4 fragColor;
 
 void main() {
-    fragColor = vec4(texture(u_frame, v_texCoord).rgb, 1.0);
+    fragColor = texture(u_frame, v_texCoord);
 }
 `.trim();
