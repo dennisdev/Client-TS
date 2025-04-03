@@ -1,4 +1,3 @@
-export const SHADER_CODE: string = `
 #version 300 es
 
 precision highp float;
@@ -41,30 +40,37 @@ void main() {
     v_data3 = fetchData(triangleIndex + 3);
     v_data4 = fetchData(triangleIndex + 4);
 
-    // ivec3 xs = ivec3(
-    //     v_data0.x, 
-    //     v_data0.y, 
-    //     v_data0.z
-    // );
-    // ivec3 ys = ivec3(
-    //     v_data0.w, 
-    //     v_data1.x, 
-    //     v_data1.y
-    // );
-
     v_textureOpaque = u_textureTranslucent[v_data4.z] ? 0.0 : 1.0;
+
+    // We have to create a larger triangle because the runescape rasterizer is different 
+    // there will be missing pixels around the edges of the triangle if we don't
+    // there might a better way to do this
+
+    vec2 p0 = vec2(v_data0.x, v_data0.w);
+    vec2 p1 = vec2(v_data0.y, v_data1.x);
+    vec2 p2 = vec2(v_data0.z, v_data1.y);
+
+    // Calculate the bounding box of the triangle
+    float minX = min(p0.x, min(p1.x, p2.x));
+    float maxX = max(p0.x, max(p1.x, p2.x));
+    float minY = min(p0.y, min(p1.y, p2.y));
+    float maxY = max(p0.y, max(p1.y, p2.y));
+
+    // Calculate triangle that contains the bounding box
+    vec2 vertices[3] = vec2[3](
+        vec2(minX, minY),
+        vec2(minX, maxY + maxY - minY),
+        vec2(maxX + maxX - minX, minY)
+    );
 
     float depth = 1.0 - float(v_data4.w) / u_triangleCount;
 
     int vertexIndex = gl_VertexID % 3;
 
-    // vec2 screenPos = vec2(xs[vertexIndex], ys[vertexIndex]);
-    // // screenPos += 0.5;
-    // gl_Position = vec4(screenPos * 2.0 / dimensions - 1.0, depth, 1.0);
+    gl_Position = vec4(vertices[vertexIndex] * 2.0 / dimensions - 1.0, depth, 1.0);
     
-    // // flip y
-    // gl_Position.y *= -1.0;
+    // flip y
+    gl_Position.y *= -1.0;
 
-    gl_Position = vec4(vertices[vertexIndex], depth, 1.0);
+    // gl_Position = vec4(vertices[vertexIndex], depth, 1.0);
 }
-`.trim();

@@ -15,8 +15,8 @@ import { SHADER_CODE as pixMapVertShaderCode } from './shaders/fullscreen-pixmap
 import { SHADER_CODE as textureFragShaderCode } from './shaders/fullscreen-texture.frag.glsl';
 import { SHADER_CODE as textureVertShaderCode } from './shaders/fullscreen-texture.vert.glsl';
 import mainFragShaderCode from './shaders/main.frag.glsl' with { type: 'text' };
-import { SHADER_CODE as mainVertShaderCode } from './shaders/main.vert.glsl';
-import { SHADER_CODE as textureTriangleVertShaderCode } from './shaders/texture.vert.glsl';
+import mainVertShaderCode from './shaders/main.vert.glsl' with { type: 'text' };
+import textureTriangleVertShaderCode from './shaders/texture.vert.glsl' with { type: 'text' };
 import textureTriangleFragShaderCode from './shaders/texture.frag.glsl' with { type: 'text' };
 
 const INITIAL_TRIANGLES: number = 4096;
