@@ -164,24 +164,7 @@ export class RendererWebGL extends Renderer {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
         for (let id = 0; id < MAX_TEXTURE_COUNT; id++) {
-            const texels = Pix3D.getTexels(id);
-            if (!texels) {
-                continue;
-            }
-            
-            this.gl.texSubImage3D(
-                this.gl.TEXTURE_2D_ARRAY,
-                0,
-                0,
-                0,
-                id,
-                MAX_TEXTURE_SIZE,
-                MAX_TEXTURE_SIZE * TEXTURE_SHADE_COUNT,
-                1,
-                this.gl.RGBA,
-                this.gl.UNSIGNED_BYTE,
-                new Uint8Array(texels.buffer),
-            );
+            this.updateTexture(id);
         }
 
         this.gl.activeTexture(this.gl.TEXTURE2);
@@ -203,12 +186,34 @@ export class RendererWebGL extends Renderer {
     }
 
     override updateTexture(id: number): void {
-
+        const texels = Pix3D.getTexels(id);
+        if (!texels) {
+            return;
+        }
+        
+        this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.textureArray);
+        this.gl.texSubImage3D(
+            this.gl.TEXTURE_2D_ARRAY,
+            0,
+            0,
+            0,
+            id,
+            MAX_TEXTURE_SIZE,
+            MAX_TEXTURE_SIZE * TEXTURE_SHADE_COUNT,
+            1,
+            this.gl.RGBA,
+            this.gl.UNSIGNED_BYTE,
+            new Uint8Array(texels.buffer),
+        );
     }
 
     override setBrightness(brightness: number): void {
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.hslToRgbTexture);
         this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, 256, 256, this.gl.RGBA, this.gl.UNSIGNED_BYTE, new Uint8Array(Pix3D.hslPal.buffer));
+        
+        for (let id = 0; id < MAX_TEXTURE_COUNT; id++) {
+            this.updateTexture(id);
+        }
     }
 
     override renderPixMap(pixMap: PixMap, x: number, y: number): boolean {
