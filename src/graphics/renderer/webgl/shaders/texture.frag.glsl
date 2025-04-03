@@ -116,13 +116,8 @@ int calc_texel_colour(
 
     int cur_w = w >> 14;
     if (cur_w != 0) {
-        cur_u = u / cur_w;
+        cur_u = clamp(u / cur_w, 0, 0x3f80);
         cur_v = v / cur_w;
-        if (cur_u < 0) {
-            cur_u = 0;
-        } else if (cur_u > 0x3f80) {
-            cur_u = 0x3f80;
-        }
     }
 
     u = u + u_stride;
@@ -131,13 +126,8 @@ int calc_texel_colour(
 
     cur_w = w >> 14;
     if (cur_w != 0) {
-        next_u = u / cur_w;
+        next_u = clamp(u / cur_w, 0x7, 0x3f80);
         next_v = v / cur_w;
-        if (next_u < 0x7) {
-            next_u = 0x7;
-        } else if (next_u > 0x3f80) {
-            next_u = 0x3f80;
-        }
     }
 
     int step_u = next_u - cur_u >> 3;
@@ -160,13 +150,8 @@ int calc_texel_colour(
 
         cur_w = w >> 14;
         if (cur_w != 0) {
-            next_u = u / cur_w;
+            next_u = clamp(u / cur_w, 0x7, 0x3f80);
             next_v = v / cur_w;
-            if (next_u < 0x7) {
-                next_u = 0x7;
-            } else if (next_u > 0x3f80) {
-                next_u = 0x3f80;
-            }
         }
 
         step_u = next_u - cur_u >> 3;
@@ -179,19 +164,12 @@ int calc_texel_colour(
     cur_u += step_u * (scanline_x & 0x7);
     cur_v += step_v * (scanline_x & 0x7);
 
-    int rgb = get_texel((cur_v & 0x3F80) + (cur_u >> 7), texture_id) >> shade_shift;
-
-    // if (rgb == 0 && v_textureOpaque == 0.0) {
-    //     return 0xff0000;
-    // }
-
-    return rgb;
+    return get_texel((cur_v & 0x3F80) + (cur_u >> 7), texture_id) >> shade_shift;
 }
 
 void main() {
     clip_x = (v_data0.x & 0x1) == 1;
     bool opaque = (v_data0.x & 0x2) == 2;
-    // bool opaque = false;
 
     int min_scanline_y = v_data0.x >> 2;
     int max_scanline_y = v_data0.y >> 8;
@@ -203,7 +181,6 @@ void main() {
     fragColor.a = 1.0;
 
     int texture_id = v_data0.y & 0xff;
-    // int texture_id = 0;
 
     int line0_height = v_data0.z;
     int line0_base_x_a = v_data0.w;
