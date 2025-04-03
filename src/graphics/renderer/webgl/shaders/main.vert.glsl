@@ -5,7 +5,7 @@ precision highp int;
 
 uniform highp float u_triangleCount;
 
-uniform highp isampler2D u_triangleData;
+uniform highp usampler2D u_triangleData;
 
 flat out ivec4 v_data0;
 flat out ivec4 v_data1;
@@ -28,28 +28,29 @@ const vec2 fullscreenVertices[3] = vec2[3](
     vec2(-1,  3)
 );
 
-ivec4 fetchData(int index) {
+uvec4 fetchData(int index) {
     return texelFetch(u_triangleData, ivec2(index % 4096, index / 4096), 0);
 }
 
 void main() {
-    int triangleIndex = gl_VertexID / 3 * 3;
+    int triangleIndex = gl_VertexID / 3 * 2;
 
-    v_data0 = fetchData(triangleIndex);
-    v_data1 = fetchData(triangleIndex + 1);
-    v_data2 = fetchData(triangleIndex + 2);
+    uvec4 data0 = fetchData(triangleIndex);
+    uvec4 data1 = fetchData(triangleIndex + 1);
 
-    int x_a = v_data0.x;
-    int x_b = v_data0.y;
-    int x_c = v_data0.z;
-    int y_a = v_data0.w;
-    int y_b = v_data1.x;
-    int y_c = v_data1.y;
-    int colour_a = v_data1.z;
-    int colour_b = v_data1.w;
-    int colour_c = v_data2.x;
+    int x_a = int(data0.x >> uint(16)) - 32768;
+    int x_b = int(data0.x & uint(0xffff)) - 32768;
+    int x_c = int(data0.y >> uint(16)) - 32768;
+    int y_a = int(data0.y & uint(0xffff)) - 32768;
+    int y_b = int(data0.z >> uint(16)) - 32768;
+    int y_c = int(data0.z & uint(0xffff)) - 32768;
+    int colour_a = int(data0.w >> uint(16));
+    int colour_b = int(data0.w & uint(0xffff));
+    int colour_c = int(data1.x);
 
-    int alpha = 255 - v_data2.z;
+    float depth = 1.0 - float(data1.y) / u_triangleCount;
+
+    int alpha = 255 - int(data1.z);
 
     // We have to create a larger triangle because the runescape rasterizer is different 
     // there will be missing pixels around the edges of the triangle if we don't
@@ -67,8 +68,6 @@ void main() {
         vec2(min_x, max_y + max_y - min_y),
         vec2(max_x + max_x - min_x, min_y)
     );
-
-    float depth = 1.0 - float(v_data2.y) / u_triangleCount;
 
     int vertexIndex = gl_VertexID % 3;
 
