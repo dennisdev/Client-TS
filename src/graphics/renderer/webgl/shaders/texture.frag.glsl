@@ -98,9 +98,6 @@ int calc_texel_colour(
         if (x_b - x_a > 7) {
             strides = (x_b - x_a) >> 3;
             shade_strides = (shade_b - shade_a) * reciprocal15(strides) >> 6;
-        } else {
-            strides = 0;
-            shade_strides = 0;
         }
 
         shade_a <<= 9;
