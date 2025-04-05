@@ -50,7 +50,19 @@ int pack_colour888(vec3 rgb) {
 int get_texel(int index, int texture_id) {
     int x = index % 128;
     int y = index / 128;
-    return pack_colour888(texelFetch(u_textures, ivec3(x, y, texture_id), 0).bgr);
+    int shade_index = y / 128;
+    y = y % 128;
+    int rgb = pack_colour888(texelFetch(u_textures, ivec3(x, y, texture_id), 0).bgr);
+    if (rgb == 0) {
+        return -1;
+    }
+    int rgb_shades[4] = int[](
+        rgb,
+        (rgb - (rgb >> 3)) & 0xf8f8ff,
+        (rgb - (rgb >> 2)) & 0xf8f8ff,
+        (rgb - (rgb >> 2) - (rgb >> 3)) & 0xf8f8ff
+    );
+    return rgb_shades[shade_index];
 }
 
 int reciprocal15(int value) {
@@ -166,9 +178,8 @@ int calc_texel_colour(
 
 void main() {
     clip_x = (v_data0.x & 0x1) == 1;
-    bool opaque = (v_data0.x & 0x2) == 2;
 
-    int min_scanline_y = v_data0.x >> 2;
+    int min_scanline_y = v_data0.x >> 1;
     int max_scanline_y = v_data0.y >> 8;
     int scanline_y = height - int(gl_FragCoord.y) - 1 - min_scanline_y;
     if (scanline_y < 0 || scanline_y >= max_scanline_y - min_scanline_y) {
@@ -233,7 +244,7 @@ void main() {
             colour_a >> 8, 
             colour_b >> 8
         );
-        if (opaque || rgb != 0) {
+        if (rgb != -1) {
             fragColor.rgb = unpack_colour888(rgb);
             return;
         }
@@ -263,7 +274,7 @@ void main() {
             colour_a >> 8, 
             colour_b >> 8
         );
-        if (opaque || rgb != 0) {
+        if (rgb != -1) {
             fragColor.rgb = unpack_colour888(rgb);
             return;
         }

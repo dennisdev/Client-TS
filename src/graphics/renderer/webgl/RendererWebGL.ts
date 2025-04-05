@@ -36,7 +36,6 @@ const INITIAL_TRIANGLES: number = 4096;
 
 const MAX_TEXTURE_COUNT = 50;
 const MAX_TEXTURE_SIZE = 128;
-const TEXTURE_SHADE_COUNT = 4;
 
 export class RendererWebGL extends Renderer {
     drawTileUnderlay(world: World3D, underlay: TileUnderlay, level: number, tileX: number, tileZ: number): boolean {
@@ -175,7 +174,7 @@ export class RendererWebGL extends Renderer {
 
         this.textureArray = this.gl.createTexture()!;
         this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.textureArray);
-        this.gl.texStorage3D(this.gl.TEXTURE_2D_ARRAY, 1, this.gl.RGBA8, MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE * TEXTURE_SHADE_COUNT, MAX_TEXTURE_COUNT);
+        this.gl.texStorage3D(this.gl.TEXTURE_2D_ARRAY, 1, this.gl.RGBA8, MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE, MAX_TEXTURE_COUNT);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
@@ -215,7 +214,7 @@ export class RendererWebGL extends Renderer {
             0,
             id,
             MAX_TEXTURE_SIZE,
-            MAX_TEXTURE_SIZE * TEXTURE_SHADE_COUNT,
+            MAX_TEXTURE_SIZE,
             1,
             this.gl.RGBA,
             this.gl.UNSIGNED_BYTE,
@@ -310,12 +309,6 @@ export class RendererWebGL extends Renderer {
 
             this.textureTriangleProgram.use();
 
-            const textureTranslucent = new Int32Array(Pix3D.textureTranslucent.length);
-            for (let i = 0; i < textureTranslucent.length; i++) {
-                textureTranslucent[i] = Pix3D.textureTranslucent[i] ? 1 : 0;
-            }
-
-            this.gl.uniform1iv(this.textureTriangleProgram.getUniformLocation('u_textureTranslucent'), textureTranslucent);
             this.gl.uniform1f(this.textureTriangleProgram.getUniformLocation('u_triangleCount'), this.triangleCount);
             this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_triangleData'), 0);
             // this.gl.uniform1i(this.textureTriangleProgram.getUniformLocation('u_hslToRgb'), 1);

@@ -3,8 +3,6 @@
 precision highp float;
 precision highp int;
 
-uniform bool u_textureTranslucent[50];
-
 uniform highp float u_triangleCount;
 
 uniform highp isampler2D u_triangleData;
@@ -96,8 +94,6 @@ void main() {
     gl_Position.y *= -1.0;
 
     // gl_Position = vec4(fullscreenVertices[vertexIndex], depth, 1.0);
-
-    bool opaque = !u_textureTranslucent[texture_id];
 
     int min_scanline_y = max(min_y, 0);
 
@@ -643,7 +639,7 @@ void main() {
         }
     }
 
-    v_data0 = ivec4((min_scanline_y << 2) | (opaque ? 0x2 : 0) | (clip_x ? 1 : 0), (max_y << 8) | texture_id, line0_height, line0_base_x_a);
+    v_data0 = ivec4((min_scanline_y << 1) | (clip_x ? 1 : 0), (max_y << 8) | texture_id, line0_height, line0_base_x_a);
     v_data1 = ivec4(line0_base_x_b, line0_step_x_a, line0_step_x_b, line0_base_colour_a);
     v_data2 = ivec4(line0_base_colour_b, line0_step_colour_a, line0_step_colour_b, line1_height);
     v_data3 = ivec4(line1_base_x_a, line1_base_x_b, line1_step_x_a, line1_step_x_b);
